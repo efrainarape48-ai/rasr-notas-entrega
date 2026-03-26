@@ -1,18 +1,26 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  LayoutDashboard, 
-  Users, 
-  Package, 
-  FileText, 
-  Settings, 
-  LogOut, 
-  Plus, 
-  Search, 
-  ChevronRight, 
-  Printer, 
-  Trash2, 
-  Edit2, 
-  Menu, 
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  updateProfile,
+  User as FirebaseUser,
+} from 'firebase/auth';
+import {
+  LayoutDashboard,
+  Users,
+  Package,
+  FileText,
+  Settings,
+  LogOut,
+  Plus,
+  Search,
+  ChevronRight,
+  Printer,
+  Trash2,
+  Edit2,
+  Menu,
   X,
   ArrowLeft,
   CheckCircle2,
@@ -32,27 +40,35 @@ import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import { 
-  Customer, 
-  Item, 
-  DeliveryNote, 
-  Screen, 
+import {
+  Customer,
+  Item,
+  DeliveryNote,
+  Screen,
   DeliveryStatus,
   DeliveryNoteLine,
   CompanyProfile,
   AppSettings
 } from './types';
 import { MOCK_CUSTOMERS, MOCK_ITEMS, MOCK_DELIVERY_NOTES } from './constants';
+import { auth } from './firebase';
+
+type AppUser = {
+  uid: string;
+  name: string;
+  email: string;
+  company?: CompanyProfile;
+};
 
 // --- Components ---
 
-  const Badge = ({ status }: { status: DeliveryStatus }) => {
+const Badge = ({ status }: { status: DeliveryStatus }) => {
   const styles = {
     delivered: 'bg-navy text-white border-navy',
     draft: 'bg-blue-gray/20 text-navy border-blue-gray/30',
     canceled: 'bg-steel/10 text-steel border-steel/20',
   };
-  
+
   const labels = {
     delivered: 'Entregado',
     draft: 'Borrador',
@@ -73,11 +89,23 @@ import { MOCK_CUSTOMERS, MOCK_ITEMS, MOCK_DELIVERY_NOTES } from './constants';
   );
 };
 
-const Modal = ({ isOpen, onClose, title, children, maxWidth = "max-w-md" }: { isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; maxWidth?: string }) => {
+const Modal = ({
+  isOpen,
+  onClose,
+  title,
+  children,
+  maxWidth = "max-w-md"
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+  maxWidth?: string;
+}) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-primary/40 backdrop-blur-sm">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         className={`premium-card w-full ${maxWidth} p-6 space-y-4 max-h-[90vh] overflow-y-auto`}
@@ -106,7 +134,15 @@ interface ImportRow {
   error?: string;
 }
 
-const InventoryImportModal = ({ isOpen, onClose, onImport }: { isOpen: boolean; onClose: () => void; onImport: (items: Item[]) => void }) => {
+const InventoryImportModal = ({
+  isOpen,
+  onClose,
+  onImport
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onImport: (items: Item[]) => void;
+}) => {
   const [rows, setRows] = useState<ImportRow[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -136,7 +172,6 @@ const InventoryImportModal = ({ isOpen, onClose, onImport }: { isOpen: boolean; 
             activo: item.activo === undefined ? true : (String(item.activo).toLowerCase() === 'true' || item.activo === 1),
           };
 
-          // Validation
           if (!row.nombre) row.error = 'El nombre es obligatorio';
           else if (isNaN(Number(row.precio_unitario))) row.error = 'Precio inválido';
           else if (isNaN(Number(row.stock))) row.error = 'Stock inválido';
@@ -180,9 +215,9 @@ const InventoryImportModal = ({ isOpen, onClose, onImport }: { isOpen: boolean; 
     <Modal isOpen={isOpen} onClose={onClose} title="Importar Inventario" maxWidth="max-w-4xl">
       <div className="space-y-6">
         <div className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-accent transition-colors cursor-pointer relative">
-          <input 
-            type="file" 
-            accept=".xlsx, .xls, .csv" 
+          <input
+            type="file"
+            accept=".xlsx, .xls, .csv"
             onChange={handleFileChange}
             className="absolute inset-0 opacity-0 cursor-pointer"
           />
@@ -203,7 +238,7 @@ const InventoryImportModal = ({ isOpen, onClose, onImport }: { isOpen: boolean; 
             <div className="flex items-center justify-between">
               <h4 className="text-sm font-bold text-primary uppercase tracking-widest">Vista Previa ({rows.length} filas)</h4>
               <p className="text-xs text-muted">
-                <span className="text-emerald-600 font-bold">{validRows.length} válidas</span> / 
+                <span className="text-emerald-600 font-bold">{validRows.length} válidas</span> /
                 <span className="text-rose-600 font-bold"> {rows.length - validRows.length} con errores</span>
               </p>
             </div>
@@ -247,8 +282,8 @@ const InventoryImportModal = ({ isOpen, onClose, onImport }: { isOpen: boolean; 
             </div>
             <div className="flex justify-end gap-3">
               <button onClick={() => setRows([])} className="premium-button-secondary text-xs">Cancelar</button>
-              <button 
-                onClick={handleConfirmImport} 
+              <button
+                onClick={handleConfirmImport}
                 disabled={validRows.length === 0}
                 className="premium-button-primary text-xs"
               >
@@ -287,7 +322,7 @@ const ShareFallbackModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () 
           </li>
         </ol>
         <div className="pt-4 flex flex-col gap-3">
-          <button 
+          <button
             onClick={onClose}
             className="premium-button-primary w-full flex items-center justify-center gap-2"
           >
@@ -304,7 +339,6 @@ const LogoUpload = ({ logoData, onUpload }: { logoData?: string; onUpload: (data
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validation
     const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml'];
     if (!validTypes.includes(file.type)) {
       alert('Formato no soportado. Usa PNG, JPG o SVG.');
@@ -319,7 +353,6 @@ const LogoUpload = ({ logoData, onUpload }: { logoData?: string; onUpload: (data
         let width = img.width;
         let height = img.height;
 
-        // Resize if too large (max 400px width/height)
         const maxDim = 400;
         if (width > maxDim || height > maxDim) {
           if (width > height) {
@@ -336,11 +369,10 @@ const LogoUpload = ({ logoData, onUpload }: { logoData?: string; onUpload: (data
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(img, 0, 0, width, height);
 
-        // Compress to JPEG if not SVG
-        const dataUrl = file.type === 'image/svg+xml' 
-          ? event.target?.result as string 
+        const dataUrl = file.type === 'image/svg+xml'
+          ? event.target?.result as string
           : canvas.toDataURL('image/jpeg', 0.7);
-        
+
         onUpload(dataUrl);
       };
       img.src = event.target?.result as string;
@@ -356,9 +388,9 @@ const LogoUpload = ({ logoData, onUpload }: { logoData?: string; onUpload: (data
         ) : (
           <Package size={32} className="text-muted/30" />
         )}
-        <input 
-          type="file" 
-          accept=".png,.jpg,.jpeg,.svg" 
+        <input
+          type="file"
+          accept=".png,.jpg,.jpeg,.svg"
           onChange={handleFileChange}
           className="absolute inset-0 opacity-0 cursor-pointer z-10"
         />
@@ -372,7 +404,7 @@ const LogoUpload = ({ logoData, onUpload }: { logoData?: string; onUpload: (data
           Sube tu logo en formato PNG, JPG o SVG. Se optimizará automáticamente.
         </p>
         {logoData && (
-          <button 
+          <button
             onClick={() => onUpload('')}
             className="text-[10px] text-rose-600 font-bold uppercase tracking-widest hover:underline"
           >
@@ -415,7 +447,11 @@ const generatePDF = async (elementId: string, fileName: string) => {
   return pdf;
 };
 
-const shareOnWhatsApp = async (note: DeliveryNote, setIsSharing: (v: boolean) => void, setIsShareFallbackOpen: (v: boolean) => void) => {
+const shareOnWhatsApp = async (
+  note: DeliveryNote,
+  setIsSharing: (v: boolean) => void,
+  setIsShareFallbackOpen: (v: boolean) => void
+) => {
   setIsSharing(true);
   try {
     const pdf = await generatePDF('delivery-note-pdf', `Nota_${note.noteNumber}.pdf`);
@@ -431,10 +467,9 @@ const shareOnWhatsApp = async (note: DeliveryNote, setIsSharing: (v: boolean) =>
         text: `Hola, te adjunto la nota de entrega ${note.noteNumber}.`
       });
     } else {
-      // Fallback
       pdf.save(`Nota_${note.noteNumber}.pdf`);
       setIsShareFallbackOpen(true);
-      
+
       const message = `Hola, te adjunto la nota de entrega ${note.noteNumber}. Acabo de descargar el PDF, por favor adjúntalo en este chat.`;
       const encodedMessage = encodeURIComponent(message);
       const cleanPhone = (note.customerPhone || '').replace(/\D/g, '');
@@ -450,8 +485,9 @@ const shareOnWhatsApp = async (note: DeliveryNote, setIsSharing: (v: boolean) =>
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('login');
-  const [user, setUser] = useState<{ name: string; email: string; company?: CompanyProfile } | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [pendingRegistration, setPendingRegistration] = useState<{ name: string; email: string; password: string } | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [settings, setSettings] = useState<AppSettings>({
     theme: 'light',
@@ -461,19 +497,16 @@ function App() {
     numberingFormat: 'NE-{YYYY}-{0000}',
     language: 'es'
   });
-  
-  // State for data
+
   const [customers, setCustomers] = useState<Customer[]>(MOCK_CUSTOMERS);
   const [items, setItems] = useState<Item[]>(MOCK_ITEMS);
   const [deliveryNotes, setDeliveryNotes] = useState<DeliveryNote[]>(MOCK_DELIVERY_NOTES);
-  
-  // State for editing
+
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [editingNote, setEditingNote] = useState<DeliveryNote | null>(null);
   const [viewingNote, setViewingNote] = useState<DeliveryNote | null>(null);
-  
-  // Modal states
+
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -486,34 +519,75 @@ function App() {
     window.scrollTo(0, 0);
   };
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    setUser({ 
-      name: 'Admin User', 
-      email: 'admin@rasr.com',
-      company: {
-        name: 'RASR Solutions S.A.',
-        phone: '+52 55 1234 5678',
-        email: 'contacto@rasr.com',
-        address: 'Av. Reforma 456, Ciudad de México',
-        taxId: 'RASR123456ABC',
-        footerText: 'Gracias por su preferencia.'
+  const getCompanyStorageKey = (uid: string) => `rasr_company_${uid}`;
+
+  const saveCompanyProfile = (uid: string, company: CompanyProfile) => {
+    localStorage.setItem(getCompanyStorageKey(uid), JSON.stringify(company));
+  };
+
+  const loadCompanyProfile = (uid: string): CompanyProfile | undefined => {
+    const raw = localStorage.getItem(getCompanyStorageKey(uid));
+    return raw ? JSON.parse(raw) : undefined;
+  };
+
+  const getFirebaseErrorMessage = (code: string) => {
+    switch (code) {
+      case 'auth/invalid-credential':
+      case 'auth/wrong-password':
+      case 'auth/user-not-found':
+      case 'auth/invalid-email':
+        return 'Correo o contraseña incorrectos.';
+      case 'auth/email-already-in-use':
+        return 'Ese correo ya está registrado.';
+      case 'auth/weak-password':
+        return 'La contraseña debe tener al menos 6 caracteres.';
+      case 'auth/network-request-failed':
+        return 'Error de red. Revisa tu conexión e inténtalo de nuevo.';
+      case 'auth/operation-not-allowed':
+        return 'El método Email/Password no está habilitado en Firebase.';
+      default:
+        return 'Ocurrió un error de autenticación. Inténtalo de nuevo.';
+    }
+  };
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
+      if (firebaseUser) {
+        const company = loadCompanyProfile(firebaseUser.uid);
+
+        setUser({
+          uid: firebaseUser.uid,
+          name: firebaseUser.displayName || 'Usuario',
+          email: firebaseUser.email || '',
+          company,
+        });
+
+        setCurrentScreen((prev) =>
+          ['login', 'register', 'register-company'].includes(prev) ? 'dashboard' : prev
+        );
+      } else {
+        setUser(null);
+        setCurrentScreen((prev) =>
+          ['register', 'register-company'].includes(prev) ? prev : 'login'
+        );
       }
+
+      setIsAuthLoading(false);
     });
-    navigate('dashboard');
-  };
 
-  const handleRegister = (e: React.FormEvent) => {
-    e.preventDefault();
-    navigate('register-company');
-  };
+    return () => unsubscribe();
+  }, []);
 
-  const handleLogout = () => {
-    setUser(null);
-    navigate('login');
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setPendingRegistration(null);
+      setUser(null);
+      navigate('login');
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error);
+    }
   };
-
-  // --- Render Helpers ---
 
   const renderSidebar = () => (
     <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-navy text-white transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
@@ -547,14 +621,14 @@ function App() {
         <div className="p-6 border-t border-white/5 bg-carbon/20">
           <div className="flex items-center gap-3 mb-6 px-2">
             <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs border border-primary/30">
-              {user?.name.split(' ').map(n => n[0]).join('')}
+              {user?.name ? user.name.split(' ').map(n => n[0]).join('') : 'U'}
             </div>
             <div className="flex flex-col overflow-hidden">
               <span className="text-sm font-bold text-white truncate">{user?.name}</span>
               <span className="text-[10px] text-blue-gray/50 truncate">{user?.email}</span>
             </div>
           </div>
-          <button 
+          <button
             onClick={handleLogout}
             className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-blue-gray/60 hover:bg-rose-500/10 hover:text-rose-500 transition-all font-bold text-xs uppercase tracking-widest"
           >
@@ -570,15 +644,15 @@ function App() {
     <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-border lg:ml-64 no-print">
       <div className="flex items-center justify-between px-6 h-20 lg:px-10">
         <div className="flex items-center">
-          <button 
+          <button
             onClick={() => setIsSidebarOpen(true)}
             className="p-2 -ml-2 text-carbon lg:hidden"
           >
             <Menu size={24} />
           </button>
-          
+
           {showBack && (
-            <button 
+            <button
               onClick={() => navigate(backTo)}
               className="p-2 -ml-2 mr-3 text-carbon hover:bg-background rounded-full transition-colors"
             >
@@ -588,7 +662,7 @@ function App() {
 
           <h1 className="text-xl font-extrabold text-carbon ml-2 lg:ml-0 uppercase tracking-tight">{title}</h1>
         </div>
-        
+
         <div className="flex items-center space-x-4">
           <div className="hidden sm:flex flex-col items-end">
             <span className="text-[10px] font-extrabold text-primary uppercase tracking-widest">{user?.company?.name}</span>
@@ -605,33 +679,30 @@ function App() {
     </header>
   );
 
-  // --- Screen Components ---
-
   const LoginScreen = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
 
-    const handleLoginSubmit = (e: React.FormEvent) => {
+    const handleLoginSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
-      // Mock login
-      setUser({ 
-        name: 'Admin User', 
-        email: email || 'admin@rasr.com',
-        company: {
-          name: 'RASR Solutions S.A.',
-          phone: '+52 55 1234 5678',
-          email: 'contacto@rasr.com',
-          address: 'Av. Reforma 456, Ciudad de México',
-          taxId: 'RASR123456ABC',
-          footerText: 'Gracias por su preferencia.'
-        }
-      });
-      navigate('dashboard');
+      setError('');
+      setLoading(true);
+
+      try {
+        await signInWithEmailAndPassword(auth, email.trim(), password);
+        navigate('dashboard');
+      } catch (err: any) {
+        setError(getFirebaseErrorMessage(err?.code || ''));
+      } finally {
+        setLoading(false);
+      }
     };
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-6">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-md"
@@ -650,11 +721,11 @@ function App() {
                 <label className="block text-[10px] font-bold text-carbon uppercase tracking-[0.2em] mb-2">Correo Electrónico</label>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
-                  <input 
-                    type="email" 
-                    required 
-                    className="premium-input pl-12" 
-                    placeholder="admin@rasr.com" 
+                  <input
+                    type="email"
+                    required
+                    className="premium-input pl-12"
+                    placeholder="admin@rasr.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
@@ -664,21 +735,32 @@ function App() {
                 <label className="block text-[10px] font-bold text-carbon uppercase tracking-[0.2em] mb-2">Contraseña</label>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
-                  <input 
-                    type="password" 
-                    required 
-                    className="premium-input pl-12" 
-                    placeholder="••••••••" 
+                  <input
+                    type="password"
+                    required
+                    className="premium-input pl-12"
+                    placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
                 </div>
               </div>
-              <button type="submit" className="premium-button-primary w-full py-4 text-xs uppercase tracking-[0.2em] font-extrabold">
-                Iniciar Sesión
+
+              {error && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="premium-button-primary w-full py-4 text-xs uppercase tracking-[0.2em] font-extrabold disabled:opacity-60"
+              >
+                {loading ? 'Ingresando...' : 'Iniciar Sesión'}
               </button>
             </form>
-            
+
             <div className="mt-8 text-center">
               <p className="text-sm text-steel">
                 ¿No tienes una cuenta? <button onClick={() => navigate('register')} className="text-primary font-bold hover:underline">Regístrate ahora</button>
@@ -694,16 +776,29 @@ function App() {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
 
     const handleRegisterSubmit = (e: React.FormEvent) => {
       e.preventDefault();
-      setPendingRegistration({ name, email, password });
+      setError('');
+
+      if (password.length < 6) {
+        setError('La contraseña debe tener al menos 6 caracteres.');
+        return;
+      }
+
+      setPendingRegistration({
+        name: name.trim(),
+        email: email.trim(),
+        password,
+      });
+
       navigate('register-company');
     };
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-6">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-md"
@@ -722,11 +817,11 @@ function App() {
                 <label className="block text-[10px] font-bold text-carbon uppercase tracking-[0.2em] mb-2">Nombre Completo</label>
                 <div className="relative">
                   <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
-                  <input 
-                    type="text" 
-                    required 
-                    className="premium-input pl-12" 
-                    placeholder="Tu nombre" 
+                  <input
+                    type="text"
+                    required
+                    className="premium-input pl-12"
+                    placeholder="Tu nombre"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                   />
@@ -736,11 +831,11 @@ function App() {
                 <label className="block text-[10px] font-bold text-carbon uppercase tracking-[0.2em] mb-2">Correo Electrónico</label>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
-                  <input 
-                    type="email" 
-                    required 
-                    className="premium-input pl-12" 
-                    placeholder="ejemplo@correo.com" 
+                  <input
+                    type="email"
+                    required
+                    className="premium-input pl-12"
+                    placeholder="ejemplo@correo.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
@@ -750,21 +845,28 @@ function App() {
                 <label className="block text-[10px] font-bold text-carbon uppercase tracking-[0.2em] mb-2">Contraseña</label>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
-                  <input 
-                    type="password" 
-                    required 
-                    className="premium-input pl-12" 
-                    placeholder="••••••••" 
+                  <input
+                    type="password"
+                    required
+                    className="premium-input pl-12"
+                    placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
                 </div>
               </div>
+
+              {error && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
+
               <button type="submit" className="premium-button-primary w-full py-4 text-xs uppercase tracking-[0.2em] font-extrabold">
                 Siguiente: Datos del Negocio
               </button>
             </form>
-            
+
             <div className="mt-8 text-center">
               <p className="text-sm text-steel">
                 ¿Ya tienes una cuenta? <button onClick={() => navigate('login')} className="text-primary font-bold hover:underline">Inicia sesión</button>
@@ -784,6 +886,8 @@ function App() {
     const [address, setAddress] = useState('');
     const [footerText, setFooterText] = useState('');
     const [logoData, setLogoData] = useState<string | undefined>(undefined);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
 
     useEffect(() => {
       if (!pendingRegistration) {
@@ -791,30 +895,55 @@ function App() {
       }
     }, [pendingRegistration]);
 
-    const handleCompanySubmit = (e: React.FormEvent) => {
+    const handleCompanySubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!pendingRegistration) return;
 
-      setUser({
-        name: pendingRegistration.name,
-        email: pendingRegistration.email,
-        company: {
-          name: companyName,
-          taxId,
-          phone,
-          address,
-          email: businessEmail || pendingRegistration.email,
-          footerText,
+      setError('');
+      setLoading(true);
+
+      try {
+        const credential = await createUserWithEmailAndPassword(
+          auth,
+          pendingRegistration.email.trim(),
+          pendingRegistration.password
+        );
+
+        await updateProfile(credential.user, {
+          displayName: pendingRegistration.name.trim(),
+        });
+
+        const company: CompanyProfile = {
+          name: companyName.trim(),
+          taxId: taxId.trim(),
+          phone: phone.trim(),
+          address: address.trim(),
+          email: (businessEmail || pendingRegistration.email).trim(),
+          footerText: footerText.trim() || undefined,
           logoData
-        }
-      });
-      setPendingRegistration(null);
-      navigate('dashboard');
+        };
+
+        saveCompanyProfile(credential.user.uid, company);
+
+        setUser({
+          uid: credential.user.uid,
+          name: pendingRegistration.name.trim(),
+          email: credential.user.email || pendingRegistration.email.trim(),
+          company
+        });
+
+        setPendingRegistration(null);
+        navigate('dashboard');
+      } catch (err: any) {
+        setError(getFirebaseErrorMessage(err?.code || ''));
+      } finally {
+        setLoading(false);
+      }
     };
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-6">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-2xl"
@@ -832,43 +961,43 @@ function App() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="block text-[10px] font-bold text-carbon uppercase tracking-[0.2em]">Nombre Comercial</label>
-                  <input 
-                    type="text" 
-                    required 
-                    className="premium-input" 
-                    placeholder="Ej: Mi Empresa S.L." 
+                  <input
+                    type="text"
+                    required
+                    className="premium-input"
+                    placeholder="Ej: Mi Empresa S.L."
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="block text-[10px] font-bold text-carbon uppercase tracking-[0.2em]">CIF / NIF / Tax ID</label>
-                  <input 
-                    type="text" 
-                    required 
-                    className="premium-input" 
-                    placeholder="Ej: B12345678" 
+                  <input
+                    type="text"
+                    required
+                    className="premium-input"
+                    placeholder="Ej: B12345678"
                     value={taxId}
                     onChange={(e) => setTaxId(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="block text-[10px] font-bold text-carbon uppercase tracking-[0.2em]">Teléfono de Contacto</label>
-                  <input 
-                    type="tel" 
-                    required 
-                    className="premium-input" 
-                    placeholder="+34 000 000 000" 
+                  <input
+                    type="tel"
+                    required
+                    className="premium-input"
+                    placeholder="+34 000 000 000"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="block text-[10px] font-bold text-carbon uppercase tracking-[0.2em]">Email del Negocio (Opcional)</label>
-                  <input 
-                    type="email" 
-                    className="premium-input" 
-                    placeholder="negocio@ejemplo.com" 
+                  <input
+                    type="email"
+                    className="premium-input"
+                    placeholder="negocio@ejemplo.com"
                     value={businessEmail}
                     onChange={(e) => setBusinessEmail(e.target.value)}
                   />
@@ -879,38 +1008,46 @@ function App() {
                 </div>
                 <div className="md:col-span-2 space-y-2">
                   <label className="block text-[10px] font-bold text-carbon uppercase tracking-[0.2em]">Dirección Fiscal Completa</label>
-                  <textarea 
-                    required 
-                    className="premium-input min-h-[100px]" 
-                    placeholder="Calle, Número, Ciudad, CP, País" 
+                  <textarea
+                    required
+                    className="premium-input min-h-[100px]"
+                    placeholder="Calle, Número, Ciudad, CP, País"
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                   />
                 </div>
                 <div className="md:col-span-2 space-y-2">
                   <label className="block text-[10px] font-bold text-carbon uppercase tracking-[0.2em]">Texto de Pie de Página (Opcional)</label>
-                  <textarea 
-                    className="premium-input min-h-[60px]" 
-                    placeholder="Ej: Gracias por su confianza. Términos y condiciones aplicables..." 
+                  <textarea
+                    className="premium-input min-h-[60px]"
+                    placeholder="Ej: Gracias por su confianza. Términos y condiciones aplicables..."
                     value={footerText}
                     onChange={(e) => setFooterText(e.target.value)}
                   />
                 </div>
               </div>
 
+              {error && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
+
               <div className="flex gap-4 pt-4">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => navigate('register')}
                   className="flex-1 premium-button-secondary py-4 text-xs uppercase tracking-widest font-bold"
+                  disabled={loading}
                 >
                   Atrás
                 </button>
-                <button 
-                  type="submit" 
-                  className="flex-[2] premium-button-primary py-4 text-xs uppercase tracking-widest font-bold"
+                <button
+                  type="submit"
+                  className="flex-[2] premium-button-primary py-4 text-xs uppercase tracking-widest font-bold disabled:opacity-60"
+                  disabled={loading}
                 >
-                  Finalizar Registro
+                  {loading ? 'Creando cuenta...' : 'Finalizar Registro'}
                 </button>
               </div>
             </form>
@@ -932,7 +1069,7 @@ function App() {
       <div className="p-6 lg:p-10 space-y-10">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
           {stats.map((stat, i) => (
-            <motion.div 
+            <motion.div
               key={stat.label}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -959,8 +1096,8 @@ function App() {
             <div className="premium-card divide-y divide-border overflow-hidden">
               {deliveryNotes.length > 0 ? (
                 deliveryNotes.slice(0, 5).map((note) => (
-                  <div 
-                    key={note.id} 
+                  <div
+                    key={note.id}
                     onClick={() => { setViewingNote(note); navigate('delivery-note-detail'); }}
                     className="p-5 flex items-center justify-between hover:bg-background cursor-pointer transition-colors"
                   >
@@ -1009,7 +1146,7 @@ function App() {
 
   const CustomersScreen = () => {
     const [searchTerm, setSearchTerm] = useState('');
-    const filtered = customers.filter(c => 
+    const filtered = customers.filter(c =>
       c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.email.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -1019,9 +1156,9 @@ function App() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
-            <input 
-              type="text" 
-              placeholder="Buscar clientes por nombre o correo..." 
+            <input
+              type="text"
+              placeholder="Buscar clientes por nombre o correo..."
               className="premium-input pl-12"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -1061,14 +1198,14 @@ function App() {
                       </td>
                       <td className="px-6 py-5 text-right">
                         <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button 
+                          <button
                             onClick={() => { setEditingCustomer(customer); navigate('customer-form'); }}
                             className="p-2.5 text-muted hover:text-accent hover:bg-accent/10 rounded-lg transition-all"
                             title="Editar"
                           >
                             <Edit2 size={18} />
                           </button>
-                          <button 
+                          <button
                             className="p-2.5 text-muted hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
                             title="Eliminar"
                           >
@@ -1126,10 +1263,10 @@ function App() {
             <div className="grid grid-cols-1 gap-8">
               <div>
                 <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Nombre de la Empresa / Cliente</label>
-                <input 
-                  type="text" 
-                  required 
-                  className="premium-input" 
+                <input
+                  type="text"
+                  required
+                  className="premium-input"
                   placeholder="Ej. Distribuidora Global S.A."
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -1138,10 +1275,10 @@ function App() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Correo Electrónico</label>
-                  <input 
-                    type="email" 
-                    required 
-                    className="premium-input" 
+                  <input
+                    type="email"
+                    required
+                    className="premium-input"
                     placeholder="cliente@ejemplo.com"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -1149,10 +1286,10 @@ function App() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Teléfono de Contacto</label>
-                  <input 
-                    type="tel" 
-                    required 
-                    className="premium-input" 
+                  <input
+                    type="tel"
+                    required
+                    className="premium-input"
                     placeholder="+52 ..."
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
@@ -1161,9 +1298,9 @@ function App() {
               </div>
               <div>
                 <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">RFC / Identificación Fiscal</label>
-                <input 
-                  type="text" 
-                  className="premium-input" 
+                <input
+                  type="text"
+                  className="premium-input"
                   placeholder="Opcional"
                   value={formData.taxId}
                   onChange={(e) => setFormData({ ...formData, taxId: e.target.value })}
@@ -1171,10 +1308,10 @@ function App() {
               </div>
               <div>
                 <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Dirección Completa</label>
-                <textarea 
-                  rows={3} 
-                  required 
-                  className="premium-input" 
+                <textarea
+                  rows={3}
+                  required
+                  className="premium-input"
                   placeholder="Calle, Número, Colonia, Ciudad, Estado..."
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
@@ -1195,171 +1332,171 @@ function App() {
     );
   };
 
-    const ItemsScreen = () => {
-      const [searchTerm, setSearchTerm] = useState('');
-      const [sortConfig, setSortConfig] = useState<{ key: keyof Item; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
-      const [currentPage, setCurrentPage] = useState(1);
-      const itemsPerPage = 10;
+  const ItemsScreen = () => {
+    const [searchTerm, setSearchTerm] = useState('');
+    const [sortConfig, setSortConfig] = useState<{ key: keyof Item; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
 
-      const filtered = useMemo(() => {
-        let result = items.filter(i => 
-          i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          i.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          i.sku.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+    const filtered = useMemo(() => {
+      let result = items.filter(i =>
+        i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        i.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        i.sku.toLowerCase().includes(searchTerm.toLowerCase())
+      );
 
-        result.sort((a, b) => {
-          if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
-          if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
-          return 0;
-        });
+      result.sort((a, b) => {
+        if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
 
-        return result;
-      }, [items, searchTerm, sortConfig]);
+      return result;
+    }, [items, searchTerm, sortConfig]);
 
-      const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-      const totalPages = Math.ceil(filtered.length / itemsPerPage);
+    const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    const totalPages = Math.ceil(filtered.length / itemsPerPage);
 
-      const handleSort = (key: keyof Item) => {
-        setSortConfig(prev => ({
-          key,
-          direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
-        }));
-      };
+    const handleSort = (key: keyof Item) => {
+      setSortConfig(prev => ({
+        key,
+        direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+      }));
+    };
 
-      return (
-        <div className="p-6 lg:p-10 space-y-8">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
-              <input 
-                type="text" 
-                placeholder="Buscar por SKU, nombre o descripción..." 
-                className="premium-input pl-12"
-                value={searchTerm}
-                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-              />
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <button 
-                onClick={downloadExcelTemplate}
-                className="premium-button-secondary flex items-center justify-center space-x-2 text-xs py-3"
-              >
-                <FileSpreadsheet size={16} />
-                <span className="uppercase tracking-widest font-bold">Plantilla Excel</span>
-              </button>
-              <button 
-                onClick={() => setIsImportModalOpen(true)}
-                className="premium-button-secondary flex items-center justify-center space-x-2 text-xs py-3"
-              >
-                <Upload size={16} />
-                <span className="uppercase tracking-widest font-bold">Importar</span>
-              </button>
-              <button onClick={() => { setEditingItem(null); navigate('item-form'); }} className="premium-button-accent flex items-center justify-center space-x-2 text-xs py-3">
-                <Plus size={16} />
-                <span className="uppercase tracking-widest font-bold">Nuevo Producto</span>
-              </button>
-            </div>
+    return (
+      <div className="p-6 lg:p-10 space-y-8">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
+            <input
+              type="text"
+              placeholder="Buscar por SKU, nombre o descripción..."
+              className="premium-input pl-12"
+              value={searchTerm}
+              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+            />
           </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={downloadExcelTemplate}
+              className="premium-button-secondary flex items-center justify-center space-x-2 text-xs py-3"
+            >
+              <FileSpreadsheet size={16} />
+              <span className="uppercase tracking-widest font-bold">Plantilla Excel</span>
+            </button>
+            <button
+              onClick={() => setIsImportModalOpen(true)}
+              className="premium-button-secondary flex items-center justify-center space-x-2 text-xs py-3"
+            >
+              <Upload size={16} />
+              <span className="uppercase tracking-widest font-bold">Importar</span>
+            </button>
+            <button onClick={() => { setEditingItem(null); navigate('item-form'); }} className="premium-button-accent flex items-center justify-center space-x-2 text-xs py-3">
+              <Plus size={16} />
+              <span className="uppercase tracking-widest font-bold">Nuevo Producto</span>
+            </button>
+          </div>
+        </div>
 
-          <div className="premium-card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-background border-b border-border">
-                    <th 
-                      className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest cursor-pointer hover:text-accent transition-colors"
-                      onClick={() => handleSort('sku')}
-                    >
-                      SKU {sortConfig.key === 'sku' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th 
-                      className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest cursor-pointer hover:text-accent transition-colors"
-                      onClick={() => handleSort('name')}
-                    >
-                      Producto {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest hidden lg:table-cell">Categoría</th>
-                    <th 
-                      className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest text-right cursor-pointer hover:text-accent transition-colors"
-                      onClick={() => handleSort('price')}
-                    >
-                      Precio {sortConfig.key === 'price' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th 
-                      className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest text-center cursor-pointer hover:text-accent transition-colors"
-                      onClick={() => handleSort('stock')}
-                    >
-                      Stock {sortConfig.key === 'stock' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {paginated.length > 0 ? (
-                    paginated.map((item) => (
-                      <tr key={item.id} className="hover:bg-background transition-colors group">
-                        <td className="px-6 py-5 font-mono text-xs text-muted">{item.sku}</td>
-                        <td className="px-6 py-5">
-                          <div className="font-bold text-primary">{item.name}</div>
-                          {!item.activo && <span className="text-[9px] font-bold text-rose-600 uppercase tracking-tighter">Inactivo</span>}
-                        </td>
-                        <td className="px-6 py-5 hidden lg:table-cell">
-                          <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 bg-accent/5 text-accent rounded">
-                            {item.categoria}
-                          </span>
-                        </td>
-                        <td className="px-6 py-5 text-right font-bold text-primary">
-                          ${item.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </td>
-                        <td className="px-6 py-5 text-center">
-                          <div className={`text-sm font-bold ${item.stock < 10 ? 'text-rose-600' : 'text-primary'}`}>
-                            {item.stock}
-                          </div>
-                          <div className="text-[10px] text-muted uppercase tracking-widest">{item.unit}</div>
-                        </td>
-                        <td className="px-6 py-5 text-right">
-                          <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button 
-                              onClick={() => { setEditingItem(item); navigate('item-form'); }}
-                              className="p-2.5 text-muted hover:text-accent hover:bg-accent/10 rounded-lg transition-all"
-                              title="Editar"
-                            >
-                              <Edit2 size={18} />
-                            </button>
-                            <button 
-                              onClick={() => {
-                                if (window.confirm('¿Estás seguro de eliminar este producto permanentemente?')) {
-                                  setItems(items.filter(i => i.id !== item.id));
-                                }
-                              }}
-                              className="p-2.5 text-muted hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
-                              title="Eliminar"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-20 text-center text-muted font-medium italic">
-                        No se encontraron productos en el inventario.
+        <div className="premium-card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-background border-b border-border">
+                  <th
+                    className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest cursor-pointer hover:text-accent transition-colors"
+                    onClick={() => handleSort('sku')}
+                  >
+                    SKU {sortConfig.key === 'sku' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th
+                    className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest cursor-pointer hover:text-accent transition-colors"
+                    onClick={() => handleSort('name')}
+                  >
+                    Producto {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest hidden lg:table-cell">Categoría</th>
+                  <th
+                    className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest text-right cursor-pointer hover:text-accent transition-colors"
+                    onClick={() => handleSort('price')}
+                  >
+                    Precio {sortConfig.key === 'price' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th
+                    className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest text-center cursor-pointer hover:text-accent transition-colors"
+                    onClick={() => handleSort('stock')}
+                  >
+                    Stock {sortConfig.key === 'stock' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {paginated.length > 0 ? (
+                  paginated.map((item) => (
+                    <tr key={item.id} className="hover:bg-background transition-colors group">
+                      <td className="px-6 py-5 font-mono text-xs text-muted">{item.sku}</td>
+                      <td className="px-6 py-5">
+                        <div className="font-bold text-primary">{item.name}</div>
+                        {!item.activo && <span className="text-[9px] font-bold text-rose-600 uppercase tracking-tighter">Inactivo</span>}
+                      </td>
+                      <td className="px-6 py-5 hidden lg:table-cell">
+                        <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 bg-accent/5 text-accent rounded">
+                          {item.categoria}
+                        </span>
+                      </td>
+                      <td className="px-6 py-5 text-right font-bold text-primary">
+                        ${item.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-6 py-5 text-center">
+                        <div className={`text-sm font-bold ${item.stock < 10 ? 'text-rose-600' : 'text-primary'}`}>
+                          {item.stock}
+                        </div>
+                        <div className="text-[10px] text-muted uppercase tracking-widest">{item.unit}</div>
+                      </td>
+                      <td className="px-6 py-5 text-right">
+                        <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => { setEditingItem(item); navigate('item-form'); }}
+                            className="p-2.5 text-muted hover:text-accent hover:bg-accent/10 rounded-lg transition-all"
+                            title="Editar"
+                          >
+                            <Edit2 size={18} />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm('¿Estás seguro de eliminar este producto permanentemente?')) {
+                                setItems(items.filter(i => i.id !== item.id));
+                              }
+                            }}
+                            className="p-2.5 text-muted hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                            title="Eliminar"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-20 text-center text-muted font-medium italic">
+                      No se encontraron productos en el inventario.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
           {totalPages > 1 && (
             <div className="px-6 py-4 bg-background border-t border-border flex items-center justify-between">
               <p className="text-xs text-muted font-medium">
                 Mostrando <span className="text-primary">{(currentPage - 1) * itemsPerPage + 1}</span> a <span className="text-primary">{Math.min(currentPage * itemsPerPage, filtered.length)}</span> de <span className="text-primary">{filtered.length}</span> productos
               </p>
               <div className="flex items-center space-x-2">
-                <button 
+                <button
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage(p => p - 1)}
                   className="p-2 text-muted hover:text-primary disabled:opacity-30 transition-colors"
@@ -1369,7 +1506,7 @@ function App() {
                 <span className="text-xs font-bold text-primary px-3 py-1 bg-surface border border-border rounded">
                   {currentPage} / {totalPages}
                 </span>
-                <button 
+                <button
                   disabled={currentPage === totalPages}
                   onClick={() => setCurrentPage(p => p + 1)}
                   className="p-2 text-muted hover:text-primary disabled:opacity-30 transition-colors"
@@ -1421,10 +1558,10 @@ function App() {
               <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">SKU / Código</label>
-                  <input 
-                    type="text" 
-                    required 
-                    className="premium-input" 
+                  <input
+                    type="text"
+                    required
+                    className="premium-input"
                     placeholder="Ej. HER-001"
                     value={formData.sku}
                     onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
@@ -1432,10 +1569,10 @@ function App() {
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Nombre del Producto</label>
-                  <input 
-                    type="text" 
-                    required 
-                    className="premium-input" 
+                  <input
+                    type="text"
+                    required
+                    className="premium-input"
                     placeholder="Ej. Taladro Percutor 20V"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -1445,9 +1582,9 @@ function App() {
 
               <div className="md:col-span-2">
                 <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Descripción Detallada</label>
-                <textarea 
-                  rows={3} 
-                  className="premium-input" 
+                <textarea
+                  rows={3}
+                  className="premium-input"
                   placeholder="Características, especificaciones, etc."
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -1456,9 +1593,9 @@ function App() {
 
               <div>
                 <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Categoría</label>
-                <input 
-                  type="text" 
-                  className="premium-input" 
+                <input
+                  type="text"
+                  className="premium-input"
                   placeholder="Ej. Herramientas Eléctricas"
                   value={formData.categoria}
                   onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
@@ -1468,11 +1605,11 @@ function App() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Precio Unitario ($)</label>
-                  <input 
-                    type="number" 
-                    step="0.01" 
-                    required 
-                    className="premium-input" 
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    className="premium-input"
                     placeholder="0.00"
                     value={formData.price || ''}
                     onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
@@ -1480,7 +1617,7 @@ function App() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Unidad</label>
-                  <select 
+                  <select
                     className="premium-input"
                     value={formData.unit}
                     onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
@@ -1499,18 +1636,18 @@ function App() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Stock Inicial</label>
-                  <input 
-                    type="number" 
-                    required 
-                    className="premium-input" 
+                  <input
+                    type="number"
+                    required
+                    className="premium-input"
                     value={formData.stock || 0}
                     onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) })}
                   />
                 </div>
                 <div className="flex items-end pb-3">
                   <label className="flex items-center gap-3 cursor-pointer">
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       className="w-5 h-5 rounded border-border text-accent focus:ring-accent/20"
                       checked={formData.activo}
                       onChange={(e) => setFormData({ ...formData, activo: e.target.checked })}
@@ -1536,8 +1673,8 @@ function App() {
 
   const DeliveryNotesScreen = () => {
     const [searchTerm, setSearchTerm] = useState('');
-    const filtered = deliveryNotes.filter(n => 
-      n.noteNumber.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    const filtered = deliveryNotes.filter(n =>
+      n.noteNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       n.customerName.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
@@ -1559,9 +1696,9 @@ function App() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
-            <input 
-              type="text" 
-              placeholder="Buscar por número o cliente..." 
+            <input
+              type="text"
+              placeholder="Buscar por número o cliente..."
               className="premium-input pl-12"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -1589,8 +1726,8 @@ function App() {
               <tbody className="divide-y divide-border">
                 {filtered.length > 0 ? (
                   filtered.map((note) => (
-                    <tr 
-                      key={note.id} 
+                    <tr
+                      key={note.id}
                       className="hover:bg-background transition-colors cursor-pointer group"
                       onClick={() => { setViewingNote(note); navigate('delivery-note-detail'); }}
                     >
@@ -1603,14 +1740,14 @@ function App() {
                       </td>
                       <td className="px-6 py-5 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button 
+                          <button
                             onClick={() => { setEditingNote(note); navigate('delivery-note-form'); }}
                             className="p-2.5 text-muted hover:text-accent hover:bg-accent/10 rounded-lg transition-all"
                             title="Editar"
                           >
                             <Edit2 size={18} />
                           </button>
-                          <button 
+                          <button
                             onClick={() => handleDeleteClick(note.id)}
                             className="p-2.5 text-muted hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
                             title="Eliminar"
@@ -1633,9 +1770,9 @@ function App() {
           </div>
         </div>
 
-        <Modal 
-          isOpen={isDeleteModalOpen} 
-          onClose={() => setIsDeleteModalOpen(false)} 
+        <Modal
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
           title="Confirmar Eliminación"
         >
           <div className="space-y-6">
@@ -1643,13 +1780,13 @@ function App() {
               ¿Estás seguro de que deseas eliminar esta nota de entrega? Esta acción no se puede deshacer y se perderán todos los datos asociados.
             </p>
             <div className="flex gap-3 pt-2">
-              <button 
+              <button
                 onClick={confirmDelete}
                 className="flex-1 bg-rose-600 text-white py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-rose-700 transition-colors shadow-lg shadow-rose-600/20"
               >
                 Eliminar Permanentemente
               </button>
-              <button 
+              <button
                 onClick={() => setIsDeleteModalOpen(false)}
                 className="flex-1 bg-background text-primary border border-border py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-surface transition-colors"
               >
@@ -1681,7 +1818,7 @@ function App() {
 
     const totals = useMemo(() => {
       const subtotal = (formData.lines || []).reduce((acc, item) => acc + item.total, 0);
-      return { subtotal, total: subtotal }; // For now total = subtotal, can add tax logic if needed
+      return { subtotal, total: subtotal };
     }, [formData.lines]);
 
     const addItem = () => {
@@ -1743,20 +1880,20 @@ function App() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Número de Nota</label>
-                    <input 
-                      type="text" 
-                      required 
-                      className="premium-input" 
+                    <input
+                      type="text"
+                      required
+                      className="premium-input"
                       value={formData.noteNumber}
                       onChange={(e) => setFormData({ ...formData, noteNumber: e.target.value })}
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Fecha de Emisión</label>
-                    <input 
-                      type="date" 
-                      required 
-                      className="premium-input" 
+                    <input
+                      type="date"
+                      required
+                      className="premium-input"
                       value={formData.issueDate}
                       onChange={(e) => setFormData({ ...formData, issueDate: e.target.value })}
                     />
@@ -1764,8 +1901,8 @@ function App() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Cliente</label>
-                  <select 
-                    required 
+                  <select
+                    required
                     className="premium-input"
                     value={formData.customerId}
                     onChange={(e) => setFormData({ ...formData, customerId: e.target.value })}
@@ -1778,9 +1915,9 @@ function App() {
 
               <div className="premium-card p-8 space-y-8">
                 <h3 className="text-xs font-bold text-primary uppercase tracking-widest border-b border-border pb-4">Partidas / Productos</h3>
-                
+
                 <div className="flex flex-col sm:flex-row gap-4">
-                  <select 
+                  <select
                     className="premium-input flex-1"
                     value={selectedItemId}
                     onChange={(e) => setSelectedItemId(e.target.value)}
@@ -1789,15 +1926,15 @@ function App() {
                     {items.map(i => <option key={i.id} value={i.id}>{i.name} (${i.price.toLocaleString()})</option>)}
                   </select>
                   <div className="flex gap-4 sm:w-48">
-                    <input 
-                      type="number" 
-                      min="1" 
-                      className="premium-input w-24" 
+                    <input
+                      type="number"
+                      min="1"
+                      className="premium-input w-24"
                       value={quantity}
                       onChange={(e) => setQuantity(parseInt(e.target.value))}
                     />
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={addItem}
                       disabled={!selectedItemId}
                       className="premium-button-accent flex-1 flex items-center justify-center disabled:opacity-50"
@@ -1826,8 +1963,8 @@ function App() {
                           <td className="py-4 text-sm text-muted text-right">${item.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                           <td className="py-4 text-sm font-bold text-primary text-right">${item.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                           <td className="py-4 text-right">
-                            <button 
-                              type="button" 
+                            <button
+                              type="button"
                               onClick={() => removeItem(idx)}
                               className="p-2 text-muted hover:text-rose-600 transition-colors"
                             >
@@ -1866,7 +2003,7 @@ function App() {
                 <h3 className="text-xs font-bold text-primary uppercase tracking-widest border-b border-border pb-4">Estado y Notas</h3>
                 <div>
                   <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Estado</label>
-                  <select 
+                  <select
                     className="premium-input"
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value as DeliveryStatus })}
@@ -1878,8 +2015,8 @@ function App() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Nombre de Recibido</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     className="premium-input"
                     value={formData.signerName}
                     onChange={(e) => setFormData({ ...formData, signerName: e.target.value })}
@@ -1888,8 +2025,8 @@ function App() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Notas Internas</label>
-                  <textarea 
-                    rows={3} 
+                  <textarea
+                    rows={3}
                     className="premium-input"
                     value={formData.notes}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -1925,8 +2062,8 @@ function App() {
             <span className="text-xs font-bold uppercase tracking-widest">Volver al Listado</span>
           </button>
           <div className="flex items-center space-x-3">
-            <button 
-              onClick={() => shareOnWhatsApp(viewingNote, setIsSharing, setIsShareFallbackOpen)} 
+            <button
+              onClick={() => shareOnWhatsApp(viewingNote, setIsSharing, setIsShareFallbackOpen)}
               disabled={isSharing}
               className="premium-button-secondary flex items-center space-x-2 py-2.5 px-4 border-accent/30 text-accent hover:bg-accent/5 disabled:opacity-50"
             >
@@ -1937,7 +2074,7 @@ function App() {
               <Printer size={18} />
               <span className="text-xs font-bold uppercase tracking-widest">Imprimir / PDF</span>
             </button>
-            <button 
+            <button
               onClick={() => { setEditingNote(viewingNote); navigate('delivery-note-form'); }}
               className="premium-button-primary flex items-center space-x-2 py-2.5 px-6"
             >
@@ -1948,17 +2085,16 @@ function App() {
         </div>
 
         <div id="delivery-note-pdf" className="premium-card p-12 lg:p-20 space-y-16 bg-white shadow-2xl relative overflow-hidden">
-          {/* Decorative element */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-accent/5 rounded-full -mr-32 -mt-32 blur-3xl"></div>
-          
+
           <div className="flex flex-col sm:flex-row justify-between items-start gap-12 relative z-10">
             <div className="space-y-8">
               <div className="flex items-center space-x-4">
                 {user?.company?.logoData ? (
                   <div className="w-20 h-20 flex items-center justify-center overflow-hidden rounded-xl border border-border bg-white p-2">
-                    <img 
-                      src={user.company.logoData} 
-                      alt="Logo" 
+                    <img
+                      src={user.company.logoData}
+                      alt="Logo"
                       className="max-w-full max-h-full object-contain"
                       referrerPolicy="no-referrer"
                     />
@@ -2048,9 +2184,7 @@ function App() {
 
           <div className="grid grid-cols-2 gap-20 pt-20 relative z-10">
             <div className="space-y-12">
-              <div className="h-32 border-b border-border flex items-end justify-center pb-4">
-                {/* Space for company seal or signature */}
-              </div>
+              <div className="h-32 border-b border-border flex items-end justify-center pb-4"></div>
               <p className="text-center text-[10px] font-bold text-muted uppercase tracking-[0.2em]">Firma Autorizada y Sello</p>
             </div>
             <div className="space-y-12">
@@ -2094,13 +2228,16 @@ function App() {
 
     const handleSave = () => {
       if (user) {
+        saveCompanyProfile(user.uid, companyData);
+
         setUser({
           ...user,
           company: companyData
         });
       }
+
       setSettings(localSettings);
-      // Feedback visual simple
+
       const btn = document.getElementById('save-settings-btn');
       if (btn) {
         const originalText = btn.innerText;
@@ -2124,36 +2261,36 @@ function App() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="sm:col-span-2">
                 <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Nombre de la Empresa</label>
-                <input 
-                  type="text" 
-                  className="premium-input" 
-                  value={companyData.name} 
+                <input
+                  type="text"
+                  className="premium-input"
+                  value={companyData.name}
                   onChange={(e) => setCompanyData({ ...companyData, name: e.target.value })}
                 />
               </div>
               <div>
                 <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">CIF / NIF</label>
-                <input 
-                  type="text" 
-                  className="premium-input" 
-                  value={companyData.taxId || ''} 
+                <input
+                  type="text"
+                  className="premium-input"
+                  value={companyData.taxId || ''}
                   onChange={(e) => setCompanyData({ ...companyData, taxId: e.target.value })}
                 />
               </div>
               <div>
                 <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Teléfono de Contacto</label>
-                <input 
-                  type="text" 
-                  className="premium-input" 
-                  value={companyData.phone} 
+                <input
+                  type="text"
+                  className="premium-input"
+                  value={companyData.phone}
                   onChange={(e) => setCompanyData({ ...companyData, phone: e.target.value })}
                 />
               </div>
               <div className="sm:col-span-2">
                 <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Dirección Fiscal</label>
-                <textarea 
-                  rows={3} 
-                  className="premium-input" 
+                <textarea
+                  rows={3}
+                  className="premium-input"
                   value={companyData.address}
                   onChange={(e) => setCompanyData({ ...companyData, address: e.target.value })}
                 ></textarea>
@@ -2165,17 +2302,17 @@ function App() {
             <div className="space-y-6">
               <div>
                 <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Logo de la Empresa</label>
-                <LogoUpload 
-                  logoData={companyData.logoData} 
-                  onUpload={(data) => setCompanyData({ ...companyData, logoData: data })} 
+                <LogoUpload
+                  logoData={companyData.logoData}
+                  onUpload={(data) => setCompanyData({ ...companyData, logoData: data })}
                 />
                 <p className="mt-2 text-[10px] text-muted uppercase tracking-wider">Se recomienda un fondo transparente y formato horizontal.</p>
               </div>
               <div>
                 <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Texto de Pie de Página</label>
-                <textarea 
-                  rows={2} 
-                  className="premium-input" 
+                <textarea
+                  rows={2}
+                  className="premium-input"
                   placeholder="Gracias por su confianza. Términos y condiciones aplicables..."
                   value={companyData.footerText || ''}
                   onChange={(e) => setCompanyData({ ...companyData, footerText: e.target.value })}
@@ -2192,7 +2329,7 @@ function App() {
                   <p className="font-bold text-primary text-sm">Notificaciones por Email</p>
                   <p className="text-xs text-muted">Recibir alertas cuando se entreguen las notas</p>
                 </div>
-                <div 
+                <div
                   onClick={() => setLocalSettings({ ...localSettings, notifications: !localSettings.notifications })}
                   className={`w-12 h-6 rounded-full relative cursor-pointer transition-colors ${localSettings.notifications ? 'bg-accent' : 'bg-border'}`}
                 >
@@ -2204,7 +2341,7 @@ function App() {
                   <p className="font-bold text-primary text-sm">Generación Automática de PDF</p>
                   <p className="text-xs text-muted">Crear PDF inmediatamente después de guardar</p>
                 </div>
-                <div 
+                <div
                   onClick={() => setLocalSettings({ ...localSettings, autoPdf: !localSettings.autoPdf })}
                   className={`w-12 h-6 rounded-full relative cursor-pointer transition-colors ${localSettings.autoPdf ? 'bg-accent' : 'bg-border'}`}
                 >
@@ -2214,7 +2351,7 @@ function App() {
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Moneda</label>
-                  <select 
+                  <select
                     className="premium-input"
                     value={localSettings.currency}
                     onChange={(e) => setLocalSettings({ ...localSettings, currency: e.target.value })}
@@ -2226,7 +2363,7 @@ function App() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Idioma</label>
-                  <select 
+                  <select
                     className="premium-input"
                     value={localSettings.language}
                     onChange={(e) => setLocalSettings({ ...localSettings, language: e.target.value as 'es' | 'en' })}
@@ -2239,13 +2376,13 @@ function App() {
             </div>
           </div>
           <div className="p-8 flex justify-end gap-4">
-            <button 
+            <button
               onClick={handleDiscard}
               className="premium-button-secondary py-3 px-8 text-xs font-bold uppercase tracking-widest"
             >
               Descartar
             </button>
-            <button 
+            <button
               id="save-settings-btn"
               onClick={handleSave}
               className="premium-button-primary py-3 px-8 text-xs font-bold uppercase tracking-widest"
@@ -2255,32 +2392,41 @@ function App() {
           </div>
         </div>
 
-      <div className="premium-card p-8 border-rose-100 bg-rose-50/30">
-        <h3 className="text-xs font-bold text-rose-600 uppercase tracking-widest border-b border-rose-100 pb-4 mb-6">Zona de Peligro</h3>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <p className="font-bold text-rose-900 text-sm">Cerrar Sesión</p>
-            <p className="text-xs text-rose-600/70">Salir de tu cuenta en este dispositivo</p>
+        <div className="premium-card p-8 border-rose-100 bg-rose-50/30">
+          <h3 className="text-xs font-bold text-rose-600 uppercase tracking-widest border-b border-rose-100 pb-4 mb-6">Zona de Peligro</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <p className="font-bold text-rose-900 text-sm">Cerrar Sesión</p>
+              <p className="text-xs text-rose-600/70">Salir de tu cuenta en este dispositivo</p>
+            </div>
+            <button onClick={handleLogout} className="bg-rose-600 text-white py-3 px-8 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-rose-700 transition-colors">
+              Cerrar Sesión
+            </button>
           </div>
-          <button onClick={() => { setUser(null); setCurrentScreen('login'); }} className="bg-rose-600 text-white py-3 px-8 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-rose-700 transition-colors">
-            Cerrar Sesión
-          </button>
         </div>
       </div>
-    </div>
     );
   };
 
-  // --- Main Render ---
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+          <p className="text-sm text-steel font-medium">Verificando sesión...</p>
+        </div>
+      </div>
+    );
+  }
 
-  if (currentScreen === 'login') {
+  if (!user) {
+    if (currentScreen === 'register') {
+      return <RegisterScreen />;
+    }
+    if (currentScreen === 'register-company') {
+      return <RegisterCompanyScreen />;
+    }
     return <LoginScreen />;
-  }
-  if (currentScreen === 'register') {
-    return <RegisterScreen />;
-  }
-  if (currentScreen === 'register-company') {
-    return <RegisterCompanyScreen />;
   }
 
   const getTitle = () => {
@@ -2299,17 +2445,21 @@ function App() {
   };
 
   const isForm = ['customer-form', 'item-form', 'delivery-note-form', 'delivery-note-detail'].includes(currentScreen);
-  const backTo: Screen = currentScreen === 'customer-form' ? 'customers' : 
-                        currentScreen === 'item-form' ? 'items' : 
-                        currentScreen.includes('delivery-note') ? 'delivery-notes' : 'dashboard';
+  const backTo: Screen = currentScreen === 'customer-form'
+    ? 'customers'
+    : currentScreen === 'item-form'
+      ? 'items'
+      : currentScreen.includes('delivery-note')
+        ? 'delivery-notes'
+        : 'dashboard';
 
   return (
     <div className="min-h-screen bg-background">
       {renderSidebar()}
-      
+
       <div className="lg:ml-64 min-h-screen flex flex-col">
         {renderTopBar(getTitle(), isForm, backTo)}
-        
+
         <main className="flex-1 pb-20 lg:pb-0">
           <AnimatePresence mode="wait">
             <motion.div
@@ -2332,7 +2482,6 @@ function App() {
           </AnimatePresence>
         </main>
 
-        {/* Mobile Bottom Nav */}
         <nav className="fixed bottom-0 left-0 right-0 bg-surface/90 backdrop-blur-md border-t border-border px-4 h-20 flex items-center justify-around lg:hidden no-print z-40">
           {[
             { id: 'dashboard', icon: LayoutDashboard, label: 'Inicio' },
@@ -2351,21 +2500,20 @@ function App() {
             </button>
           ))}
         </nav>
-        {/* Modals */}
+
         <ShareFallbackModal isOpen={isShareFallbackOpen} onClose={() => setIsShareFallbackOpen(false)} />
-        <InventoryImportModal 
-          isOpen={isImportModalOpen} 
-          onClose={() => setIsImportModalOpen(false)} 
+        <InventoryImportModal
+          isOpen={isImportModalOpen}
+          onClose={() => setIsImportModalOpen(false)}
           onImport={(newItems) => {
             setItems(prev => [...prev, ...newItems]);
             setIsImportModalOpen(false);
-          }} 
+          }}
         />
       </div>
 
-      {/* Sidebar Overlay */}
       {isSidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-primary/40 backdrop-blur-sm z-40 lg:hidden"
           onClick={() => setIsSidebarOpen(false)}
         ></div>
