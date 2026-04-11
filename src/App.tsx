@@ -525,20 +525,29 @@ function App() {
             setDeliveryNotes
           );
 
-          if (
-            currentScreen === 'login' ||
-            currentScreen === 'register' ||
-            currentScreen === 'register-company'
-          ) {
-            if (!profile) {
-              setCurrentScreen('register-company');
-            } else {
-              setCurrentScreen('dashboard');
+          setCurrentScreen((prev) => {
+            if (
+              prev === 'login' ||
+              prev === 'register' ||
+              prev === 'register-company'
+            ) {
+              return profile ? 'dashboard' : 'register-company';
             }
-          }
+            return prev;
+          });
         } catch (error) {
           console.error('Error loading user data:', error);
-          setCurrentScreen('dashboard');
+
+          setCurrentScreen((prev) => {
+            if (
+              prev === 'login' ||
+              prev === 'register' ||
+              prev === 'register-company'
+            ) {
+              return 'dashboard';
+            }
+            return prev;
+          });
         } finally {
           setIsLoading(false);
         }
@@ -547,14 +556,7 @@ function App() {
         setCustomers([]);
         setItems([]);
         setDeliveryNotes([]);
-
-        if (
-          currentScreen !== 'register' &&
-          currentScreen !== 'register-company'
-        ) {
-          setCurrentScreen('login');
-        }
-
+        setCurrentScreen('login');
         setIsLoading(false);
       }
     });
@@ -565,7 +567,7 @@ function App() {
       if (unsubItems) unsubItems();
       if (unsubNotes) unsubNotes();
     };
-  }, [currentScreen]);
+  }, []);
 
   const navigate = (screen: Screen) => {
     setCurrentScreen(screen);
