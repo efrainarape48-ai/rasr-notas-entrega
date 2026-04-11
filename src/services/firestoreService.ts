@@ -8,6 +8,8 @@ import {
   setDoc,
   deleteDoc,
   writeBatch,
+  type QueryDocumentSnapshot,
+  type DocumentData,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import type {
@@ -17,6 +19,8 @@ import type {
   Item,
   DeliveryNote,
 } from '../types';
+
+const nowIso = () => new Date().toISOString();
 
 const userDoc = (uid: string) => doc(db, 'users', uid);
 
@@ -35,13 +39,44 @@ const itemsCol = (uid: string) =>
 const deliveryNotesCol = (uid: string) =>
   collection(db, 'users', uid, 'deliveryNotes');
 
+function mapDocWithId<T extends { id?: string }>(
+  snap: QueryDocumentSnapshot<DocumentData>
+): T {
+  const data = snap.data() as T;
+  return {
+    ...data,
+    id: data?.id ?? snap.id,
+  } as T;
+}
+
 async function ensureUserRoot(uid: string) {
   await setDoc(
     userDoc(uid),
     {
-      updatedAt: new Date().toISOString(),
+      uid,
+      updatedAt: nowIso(),
     },
     { merge: true }
+  );
+}
+
+function subscribeOrderedCollection<T extends { id?: string }>(
+  uid: string,
+  colFactory: (uid: string) => ReturnType<typeof collection>,
+  callback: (rows: T[]) => void
+): () => void {
+  const q = query(colFactory(uid), orderBy('updatedAt', 'desc'));
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const rows = snapshot.docs.map((d) => mapDocWithId<T>(d));
+      callback(rows);
+    },
+    (error) => {
+      console.error('Firestore subscription error:', error);
+      callback([]);
+    }
   );
 }
 
@@ -57,11 +92,12 @@ export async function saveCompanyProfile(
   profile: CompanyProfile
 ): Promise<void> {
   await ensureUserRoot(uid);
+
   await setDoc(
     companyProfileDoc(uid),
     {
       ...profile,
-      updatedAt: new Date().toISOString(),
+      updatedAt: nowIso(),
     },
     { merge: true }
   );
@@ -79,11 +115,12 @@ export async function saveAppSettings(
   settings: AppSettings
 ): Promise<void> {
   await ensureUserRoot(uid);
+
   await setDoc(
     appSettingsDoc(uid),
     {
       ...settings,
-      updatedAt: new Date().toISOString(),
+      updatedAt: nowIso(),
     },
     { merge: true }
   );
@@ -93,33 +130,21 @@ export function subscribeToCustomers(
   uid: string,
   callback: (rows: Customer[]) => void
 ): () => void {
-  const q = query(customersCol(uid), orderBy('updatedAt', 'desc'));
-  return onSnapshot(q, (snapshot) => {
-    const rows = snapshot.docs.map((d) => d.data() as Customer);
-    callback(rows);
-  });
+  return subscribeOrderedCollection<Customer>(uid, customersCol, callback);
 }
 
 export function subscribeToItems(
   uid: string,
   callback: (rows: Item[]) => void
 ): () => void {
-  const q = query(itemsCol(uid), orderBy('updatedAt', 'desc'));
-  return onSnapshot(q, (snapshot) => {
-    const rows = snapshot.docs.map((d) => d.data() as Item);
-    callback(rows);
-  });
+  return subscribeOrderedCollection<Item>(uid, itemsCol, callback);
 }
 
 export function subscribeToDeliveryNotes(
   uid: string,
   callback: (rows: DeliveryNote[]) => void
 ): () => void {
-  const q = query(deliveryNotesCol(uid), orderBy('updatedAt', 'desc'));
-  return onSnapshot(q, (snapshot) => {
-    const rows = snapshot.docs.map((d) => d.data() as DeliveryNote);
-    callback(rows);
-  });
+  return subscribeOrderedCollection<DeliveryNote>(uid, deliveryNotesCol, callback);
 }
 
 export async function saveCustomer(
@@ -127,7 +152,15 @@ export async function saveCustomer(
   customer: Customer
 ): Promise<void> {
   await ensureUserRoot(uid);
-  await setDoc(doc(customersCol(uid), customer.id), customer, { merge: true });
+
+  const payload: Customer = {
+    ...customer,
+    id: customer.id,
+    createdAt: customer.createdAt || nowIso(),
+    updatedAt: nowIso(),
+  };
+
+  await setDoc(doc(customersCol(uid), payload.id), payload, { merge: true });
 }
 
 export async function deleteCustomer(
@@ -139,15 +172,31 @@ export async function deleteCustomer(
 
 export async function saveItem(uid: string, item: Item): Promise<void> {
   await ensureUserRoot(uid);
-  await setDoc(doc(itemsCol(uid), item.id), item, { merge: true });
+
+  const payload: Item = {
+    ...item,
+    id: item.id,
+    createdAt: item.createdAt || nowIso(),
+    updatedAt: nowIso(),
+  };
+
+  await setDoc(doc(itemsCol(uid), payload.id), payload, { merge: true });
 }
 
 export async function saveItemsBatch(uid: string, items: Item[]): Promise<void> {
   await ensureUserRoot(uid);
+
   const batch = writeBatch(db);
 
   items.forEach((item) => {
-    batch.set(doc(itemsCol(uid), item.id), item, { merge: true });
+    const payload: Item = {
+      ...item,
+      id: item.id,
+      createdAt: item.createdAt || nowIso(),
+      updatedAt: nowIso(),
+    };
+
+    batch.set(doc(itemsCol(uid), payload.id), payload, { merge: true });
   });
 
   await batch.commit();
@@ -165,7 +214,18 @@ export async function saveDeliveryNote(
   note: DeliveryNote
 ): Promise<void> {
   await ensureUserRoot(uid);
-  await setDoc(doc(deliveryNotesCol(uid), note.id), note, { merge: true });
+
+  const payload: DeliveryNote = {
+    ...note,
+    id: note.id,
+    lines: Array.isArray(note.lines) ? note.lines : [],
+    createdAt: note.createdAt || nowIso(),
+    updatedAt: nowIso(),
+  };
+
+  await setDoc(doc(deliveryNotesCol(uid), payload.id), payload, {
+    merge: true,
+  });
 }
 
 export async function deleteDeliveryNote(
