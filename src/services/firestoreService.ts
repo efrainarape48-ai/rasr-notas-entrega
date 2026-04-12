@@ -49,10 +49,22 @@ function mapDocWithId<T extends { id?: string }>(
   } as T;
 }
 
-function removeUndefinedFields<T extends Record<string, any>>(obj: T): T {
-  return Object.fromEntries(
-    Object.entries(obj).filter(([, value]) => value !== undefined)
-  ) as T;
+function deepClean<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => deepClean(item))
+      .filter((item) => item !== undefined) as T;
+  }
+
+  if (value && typeof value === 'object') {
+    const cleanedEntries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .map(([k, v]) => [k, deepClean(v)]);
+
+    return Object.fromEntries(cleanedEntries) as T;
+  }
+
+  return value;
 }
 
 async function ensureUserRoot(uid: string) {
@@ -99,7 +111,7 @@ export async function saveCompanyProfile(
 ): Promise<void> {
   await ensureUserRoot(uid);
 
-  const payload = removeUndefinedFields({
+  const payload = deepClean({
     ...profile,
     updatedAt: nowIso(),
   });
@@ -120,7 +132,7 @@ export async function saveAppSettings(
 ): Promise<void> {
   await ensureUserRoot(uid);
 
-  const payload = removeUndefinedFields({
+  const payload = deepClean({
     ...settings,
     updatedAt: nowIso(),
   });
@@ -155,7 +167,7 @@ export async function saveCustomer(
 ): Promise<void> {
   await ensureUserRoot(uid);
 
-  const payload = removeUndefinedFields({
+  const payload = deepClean({
     ...customer,
     id: customer.id,
     createdAt: customer.createdAt || nowIso(),
@@ -175,7 +187,7 @@ export async function deleteCustomer(
 export async function saveItem(uid: string, item: Item): Promise<void> {
   await ensureUserRoot(uid);
 
-  const payload = removeUndefinedFields({
+  const payload = deepClean({
     ...item,
     id: item.id,
     createdAt: item.createdAt || nowIso(),
@@ -191,7 +203,7 @@ export async function saveItemsBatch(uid: string, items: Item[]): Promise<void> 
   const batch = writeBatch(db);
 
   items.forEach((item) => {
-    const payload = removeUndefinedFields({
+    const payload = deepClean({
       ...item,
       id: item.id,
       createdAt: item.createdAt || nowIso(),
@@ -217,7 +229,7 @@ export async function saveDeliveryNote(
 ): Promise<void> {
   await ensureUserRoot(uid);
 
-  const payload = removeUndefinedFields({
+  const payload = deepClean({
     ...note,
     id: note.id,
     lines: Array.isArray(note.lines) ? note.lines : [],
