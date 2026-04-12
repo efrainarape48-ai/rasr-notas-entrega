@@ -421,7 +421,12 @@ const downloadExcelTemplate = () => {
   XLSX.writeFile(wb, "plantilla_inventario_RASR.xlsx");
 };
 
-const shareOnWhatsApp = async (note: DeliveryNote, company: CompanyProfile, setIsSharing: (v: boolean) => void) => {
+const shareOnWhatsApp = async (
+  note: DeliveryNote,
+  company: CompanyProfile,
+  setIsSharing: (v: boolean) => void,
+  openFallback?: () => void
+) => {
   setIsSharing(true);
   try {
     const blob = getProfessionalPDFBlob(note, company);
@@ -438,13 +443,32 @@ const shareOnWhatsApp = async (note: DeliveryNote, company: CompanyProfile, setI
       const text = encodeURIComponent(`Hola, adjunto la nota de entrega ${note.noteNumber} de ${company.name}. Por favor, descarga el PDF adjunto.`);
       window.open(`https://wa.me/${note.customerPhone.replace(/\D/g, '')}?text=${text}`, '_blank');
       saveProfessionalPDF(note, company);
-      alert('Tu navegador no soporta el envío directo de archivos. Se ha descargado el PDF profesional; por favor, adjúntalo manualmente en el chat de WhatsApp que se ha abierto.');
+      openFallback?.();
     }
   } catch (error) {
     console.error('Error sharing:', error);
+    alert('No se pudo compartir la nota por WhatsApp. Intenta descargar el PDF manualmente.');
   } finally {
     setIsSharing(false);
   }
+};
+
+const DEFAULT_SETTINGS: AppSettings = {
+  theme: 'light',
+  notifications: true,
+  autoPdf: false,
+  currency: 'MXN',
+  numberingFormat: 'NE-{YYYY}-{0000}',
+  language: 'es'
+};
+
+const generateNoteNumber = (format: string, count: number) => {
+  const year = String(new Date().getFullYear());
+  const sequence = String(count + 1).padStart(4, '0');
+
+  return (format || DEFAULT_SETTINGS.numberingFormat)
+    .replace('{YYYY}', year)
+    .replace('{0000}', sequence);
 };
 
 function App() {
@@ -453,14 +477,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [pendingRegistration, setPendingRegistration] = useState<{ name: string; email: string; password: string } | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [settings, setSettings] = useState<AppSettings>({
-    theme: 'light',
-    notifications: true,
-    autoPdf: false,
-    currency: 'MXN',
-    numberingFormat: 'NE-{YYYY}-{0000}',
-    language: 'es'
-  });
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [items, setItems] = useState<Item[]>([]);
@@ -482,17 +499,26 @@ function App() {
     let unsubItems: (() => void) | undefined;
     let unsubNotes: (() => void) | undefined;
 
+    const cleanupSubscriptions = () => {
+      if (unsubCustomers) {
+        unsubCustomers();
+        unsubCustomers = undefined;
+      }
+      if (unsubItems) {
+        unsubItems();
+        unsubItems = undefined;
+      }
+      if (unsubNotes) {
+        unsubNotes();
+        unsubNotes = undefined;
+      }
+    };
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      cleanupSubscriptions();
+
       if (firebaseUser) {
         setIsLoading(true);
-
-        setUser({
-          uid: firebaseUser.uid,
-          displayName: firebaseUser.displayName || '',
-          email: firebaseUser.email || '',
-          photoURL: firebaseUser.photoURL || undefined,
-          company: undefined,
-        });
 
         try {
           const [profile, appSettings] = await Promise.all([
@@ -508,9 +534,7 @@ function App() {
             company: profile || undefined,
           });
 
-          if (appSettings) {
-            setSettings(appSettings);
-          }
+          setSettings(appSettings || DEFAULT_SETTINGS);
 
           unsubCustomers = firestoreService.subscribeToCustomers(
             firebaseUser.uid,
@@ -526,46 +550,41 @@ function App() {
           );
 
           setCurrentScreen((prev) => {
-            if (
-              prev === 'login' ||
-              prev === 'register' ||
-              prev === 'register-company'
-            ) {
-              return profile ? 'dashboard' : 'register-company';
+            if (profile) {
+              if (
+                prev === 'login' ||
+                prev === 'register' ||
+                prev === 'register-company'
+              ) {
+                return 'dashboard';
+              }
+              return prev;
             }
-            return prev;
+
+            return 'register-company';
           });
         } catch (error) {
           console.error('Error loading user data:', error);
-
-          setCurrentScreen((prev) => {
-            if (
-              prev === 'login' ||
-              prev === 'register' ||
-              prev === 'register-company'
-            ) {
-              return 'dashboard';
-            }
-            return prev;
-          });
+          setSettings(DEFAULT_SETTINGS);
+          setCurrentScreen('register-company');
         } finally {
           setIsLoading(false);
         }
       } else {
         setUser(null);
+        setSettings(DEFAULT_SETTINGS);
         setCustomers([]);
         setItems([]);
         setDeliveryNotes([]);
+        setPendingRegistration(null);
         setCurrentScreen('login');
         setIsLoading(false);
       }
     });
 
     return () => {
+      cleanupSubscriptions();
       unsubscribe();
-      if (unsubCustomers) unsubCustomers();
-      if (unsubItems) unsubItems();
-      if (unsubNotes) unsubNotes();
     };
   }, []);
 
@@ -687,7 +706,7 @@ function App() {
       setIsSubmitting(true);
       
       try {
-        await signInWithEmailAndPassword(auth, email, password);
+        await signInWithEmailAndPassword(auth, email.trim(), password);
       } catch (err: any) {
         console.error('Login error:', err);
         switch (err.code) {
@@ -715,6 +734,7 @@ function App() {
 
     const handleGoogleLogin = async () => {
       setError(null);
+      setPendingRegistration(null);
       setIsSubmitting(true);
       try {
         const provider = new GoogleAuthProvider();
@@ -837,12 +857,13 @@ function App() {
         return;
       }
 
-      setPendingRegistration({ name, email, password });
+      setPendingRegistration({ name: name.trim(), email: email.trim(), password });
       navigate('register-company');
     };
 
     const handleGoogleRegister = async () => {
       setError(null);
+      setPendingRegistration(null);
       try {
         const provider = new GoogleAuthProvider();
         await signInWithPopup(auth, provider);
@@ -960,7 +981,7 @@ function App() {
     const [companyName, setCompanyName] = useState('');
     const [taxId, setTaxId] = useState('');
     const [phone, setPhone] = useState('');
-    const [businessEmail, setBusinessEmail] = useState('');
+    const [businessEmail, setBusinessEmail] = useState(pendingRegistration?.email || auth.currentUser?.email || '');
     const [address, setAddress] = useState('');
     const [footerText, setFooterText] = useState('');
     const [logoData, setLogoData] = useState<string | undefined>(undefined);
@@ -968,45 +989,74 @@ function App() {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
-      if (!pendingRegistration) {
+      const currentAuthUser = auth.currentUser;
+
+      if (!pendingRegistration && !currentAuthUser) {
         navigate('register');
+        return;
       }
-    }, []);
+
+      if (currentAuthUser && !businessEmail) {
+        setBusinessEmail(currentAuthUser.email || '');
+      }
+    }, [pendingRegistration, businessEmail]);
 
     const handleCompanySubmit = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!pendingRegistration) return;
+
+      const currentAuthUser = auth.currentUser;
+      const isGoogleFlow = !!currentAuthUser && !pendingRegistration;
+
+      if (!pendingRegistration && !isGoogleFlow) return;
       
       setError(null);
       setIsSubmitting(true);
 
       try {
-        const userCredential = await createUserWithEmailAndPassword(
-          auth, 
-          pendingRegistration.email, 
-          pendingRegistration.password
-        );
-        
-        await updateProfile(userCredential.user, {
-          displayName: pendingRegistration.name
-        });
+        let firebaseUser = currentAuthUser;
+
+        if (!firebaseUser && pendingRegistration) {
+          const userCredential = await createUserWithEmailAndPassword(
+            auth, 
+            pendingRegistration.email.trim(), 
+            pendingRegistration.password
+          );
+          firebaseUser = userCredential.user;
+
+          await updateProfile(firebaseUser, {
+            displayName: pendingRegistration.name.trim()
+          });
+        }
+
+        if (!firebaseUser) {
+          throw new Error('No se pudo obtener el usuario autenticado.');
+        }
 
         const companyProfile: CompanyProfile = {
-          name: companyName,
-          taxId,
-          phone,
-          address,
-          email: businessEmail || pendingRegistration.email,
-          footerText,
+          name: companyName.trim(),
+          taxId: taxId.trim(),
+          phone: phone.trim(),
+          address: address.trim(),
+          email: (businessEmail || firebaseUser.email || pendingRegistration?.email || '').trim(),
+          footerText: footerText.trim() || undefined,
           logoData
         };
 
         await Promise.all([
-          firestoreService.saveCompanyProfile(userCredential.user.uid, companyProfile),
-          firestoreService.saveAppSettings(userCredential.user.uid, settings)
+          firestoreService.saveCompanyProfile(firebaseUser.uid, companyProfile),
+          firestoreService.saveAppSettings(firebaseUser.uid, settings)
         ]);
-        
+
+        setUser({
+          uid: firebaseUser.uid,
+          displayName: firebaseUser.displayName || pendingRegistration?.name || '',
+          email: firebaseUser.email || pendingRegistration?.email || '',
+          photoURL: firebaseUser.photoURL || undefined,
+          company: companyProfile
+        });
+
         setPendingRegistration(null);
+        setCurrentScreen('dashboard');
       } catch (err: any) {
         console.error('Registration error:', err);
         switch (err.code) {
@@ -1125,10 +1175,16 @@ function App() {
               <div className="flex gap-4 pt-4">
                 <button 
                   type="button" 
-                  onClick={() => navigate('register')}
+                  onClick={() => {
+                    if (pendingRegistration) {
+                      navigate('register');
+                    } else {
+                      handleLogout();
+                    }
+                  }}
                   className="flex-1 premium-button-secondary py-4 text-xs uppercase tracking-widest font-bold"
                 >
-                  Atrás
+                  {pendingRegistration ? 'Atrás' : 'Cancelar'}
                 </button>
                 <button 
                   type="submit" 
@@ -1917,7 +1973,7 @@ function App() {
 
   const DeliveryNoteFormScreen = () => {
     const [formData, setFormData] = useState<Partial<DeliveryNote>>(editingNote || {
-      noteNumber: `NE-${new Date().getFullYear()}-${String(deliveryNotes.length + 1).padStart(4, '0')}`,
+      noteNumber: generateNoteNumber(settings.numberingFormat, deliveryNotes.length),
       issueDate: new Date().toISOString().split('T')[0],
       customerId: '',
       customerName: '',
@@ -2182,7 +2238,7 @@ function App() {
           </button>
           <div className="flex items-center space-x-3">
             <button 
-              onClick={() => shareOnWhatsApp(viewingNote, user?.company || {} as CompanyProfile, setIsSharing)} 
+              onClick={() => shareOnWhatsApp(viewingNote, user?.company || { name: 'RASR', phone: '', email: '', address: '' }, setIsSharing, () => setIsShareFallbackOpen(true))} 
               disabled={isSharing}
               className="premium-button-secondary flex items-center space-x-2 py-2.5 px-4 border-accent/30 text-accent hover:bg-accent/5 disabled:opacity-50"
             >
@@ -2229,9 +2285,9 @@ function App() {
                 <span className="text-3xl font-bold tracking-tight text-primary">{user?.company?.name || 'RASR'}</span>
               </div>
               <div className="space-y-2 text-muted text-sm leading-relaxed">
-                <p className="font-bold text-primary text-base">{user?.company?.name || 'RASR Solutions S.L.'}</p>
-                <p>{user?.company?.address || 'Polígono Industrial Empresarial, Nave 400'}</p>
-                <p className="pt-2 font-medium">CIF: {user?.company?.taxId || 'ESB12345678'}</p>
+                <p className="font-bold text-primary text-base">{user?.company?.name || 'RASR'}</p>
+                <p>{user?.company?.address || 'Sin dirección registrada'}</p>
+                {user?.company?.taxId && <p className="pt-2 font-medium">CIF: {user.company.taxId}</p>}
               </div>
             </div>
             <div className="text-right space-y-4">
@@ -2323,7 +2379,7 @@ function App() {
           <div className="pt-20 space-y-8 border-t border-border">
             <div className="text-center">
               <p className="text-[10px] text-muted uppercase tracking-[0.3em] font-medium">
-                {user?.company?.footerText || 'Gracias por confiar en RASR Solutions'}
+                {user?.company?.footerText || 'Gracias por su confianza.'}
               </p>
             </div>
             <div className="pt-8 border-t border-border/50 text-center">
@@ -2347,6 +2403,18 @@ function App() {
       footerText: ''
     });
     const [localSettings, setLocalSettings] = useState<AppSettings>(settings);
+
+    useEffect(() => {
+      setCompanyData(user?.company || {
+        name: '',
+        phone: '',
+        email: '',
+        address: '',
+        taxId: '',
+        footerText: ''
+      });
+      setLocalSettings(settings);
+    }, [user?.company, settings]);
 
     const handleSave = async () => {
       if (user) {
@@ -2631,8 +2699,7 @@ function App() {
           isOpen={isImportModalOpen} 
           onClose={() => setIsImportModalOpen(false)} 
           userUid={user?.uid}
-          onImport={(newItems) => {
-            setItems(prev => [...prev, ...newItems]);
+          onImport={() => {
             setIsImportModalOpen(false);
           }} 
         />
