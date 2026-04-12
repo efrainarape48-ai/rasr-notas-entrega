@@ -30,9 +30,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
-import { 
-  auth
-} from './firebase';
+import { auth } from './firebase';
 import * as firestoreService from './services/firestoreService';
 import { saveProfessionalPDF, getProfessionalPDFBlob } from './services/pdfService';
 import { 
@@ -421,6 +419,43 @@ const downloadExcelTemplate = () => {
   XLSX.writeFile(wb, "plantilla_inventario_RASR.xlsx");
 };
 
+const getReadableErrorMessage = (error: any) => {
+  const code = error?.code || '';
+
+  switch (code) {
+    case 'auth/operation-not-allowed':
+      return 'Este método de inicio de sesión no está habilitado en Firebase.';
+    case 'auth/popup-closed-by-user':
+      return 'Cerraste la ventana de Google antes de completar el inicio de sesión.';
+    case 'auth/popup-blocked':
+      return 'El navegador bloqueó la ventana emergente de Google.';
+    case 'auth/cancelled-popup-request':
+      return 'Se canceló el intento de inicio de sesión con Google.';
+    case 'auth/unauthorized-domain':
+      return 'Este dominio no está autorizado para iniciar sesión con Google en Firebase.';
+    case 'auth/account-exists-with-different-credential':
+      return 'Ya existe una cuenta con este correo usando otro método de inicio de sesión.';
+    case 'auth/email-already-in-use':
+      return 'Este correo electrónico ya está registrado.';
+    case 'auth/invalid-email':
+      return 'El correo electrónico no es válido.';
+    case 'auth/weak-password':
+      return 'La contraseña es muy débil.';
+    case 'auth/user-disabled':
+      return 'Esta cuenta fue deshabilitada.';
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+      return 'Credenciales inválidas. Verifica tu correo y contraseña.';
+    case 'permission-denied':
+      return 'Firestore está bloqueando la lectura o escritura. Revisa las reglas de seguridad.';
+    case 'unavailable':
+      return 'Firestore no está disponible en este momento. Intenta de nuevo.';
+    default:
+      return code ? `Error: ${code}` : 'Ocurrió un error inesperado. Intenta de nuevo.';
+  }
+};
+
 const shareOnWhatsApp = async (
   note: DeliveryNote,
   company: CompanyProfile,
@@ -563,7 +598,7 @@ function App() {
 
             return 'register-company';
           });
-        } catch (error) {
+        } catch (error: any) {
           console.error('Error loading user data:', error);
           setSettings(DEFAULT_SETTINGS);
           setCurrentScreen('register-company');
@@ -709,24 +744,7 @@ function App() {
         await signInWithEmailAndPassword(auth, email.trim(), password);
       } catch (err: any) {
         console.error('Login error:', err);
-        switch (err.code) {
-          case 'auth/operation-not-allowed':
-            setError('El inicio de sesión con correo/contraseña no está habilitado en la consola de Firebase.');
-            break;
-          case 'auth/user-not-found':
-          case 'auth/wrong-password':
-          case 'auth/invalid-credential':
-            setError('Credenciales inválidas. Verifica tu correo y contraseña.');
-            break;
-          case 'auth/invalid-email':
-            setError('El correo electrónico no es válido.');
-            break;
-          case 'auth/user-disabled':
-            setError('Esta cuenta ha sido deshabilitada.');
-            break;
-          default:
-            setError('Ocurrió un error al iniciar sesión. Intenta de nuevo.');
-        }
+        setError(getReadableErrorMessage(err));
       } finally {
         setIsSubmitting(false);
       }
@@ -738,10 +756,11 @@ function App() {
       setIsSubmitting(true);
       try {
         const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: 'select_account' });
         await signInWithPopup(auth, provider);
       } catch (err: any) {
         console.error('Google login error:', err);
-        setError('Error al iniciar sesión con Google.');
+        setError(getReadableErrorMessage(err));
       } finally {
         setIsSubmitting(false);
       }
@@ -866,10 +885,11 @@ function App() {
       setPendingRegistration(null);
       try {
         const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: 'select_account' });
         await signInWithPopup(auth, provider);
       } catch (err: any) {
         console.error('Google registration error:', err);
-        setError('Error al registrarse con Google.');
+        setError(getReadableErrorMessage(err));
       }
     };
 
@@ -1059,22 +1079,7 @@ function App() {
         setCurrentScreen('dashboard');
       } catch (err: any) {
         console.error('Registration error:', err);
-        switch (err.code) {
-          case 'auth/email-already-in-use':
-            setError('Este correo electrónico ya está registrado.');
-            break;
-          case 'auth/invalid-email':
-            setError('El correo electrónico no es válido.');
-            break;
-          case 'auth/operation-not-allowed':
-            setError('El registro con correo y contraseña no está habilitado.');
-            break;
-          case 'auth/weak-password':
-            setError('La contraseña es muy débil.');
-            break;
-          default:
-            setError('Ocurrió un error al registrarse. Intenta de nuevo.');
-        }
+        setError(getReadableErrorMessage(err));
       } finally {
         setIsSubmitting(false);
       }
