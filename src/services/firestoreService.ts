@@ -49,6 +49,12 @@ function mapDocWithId<T extends { id?: string }>(
   } as T;
 }
 
+function removeUndefinedFields<T extends Record<string, any>>(obj: T): T {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, value]) => value !== undefined)
+  ) as T;
+}
+
 async function ensureUserRoot(uid: string) {
   await setDoc(
     userDoc(uid),
@@ -93,14 +99,12 @@ export async function saveCompanyProfile(
 ): Promise<void> {
   await ensureUserRoot(uid);
 
-  await setDoc(
-    companyProfileDoc(uid),
-    {
-      ...profile,
-      updatedAt: nowIso(),
-    },
-    { merge: true }
-  );
+  const payload = removeUndefinedFields({
+    ...profile,
+    updatedAt: nowIso(),
+  });
+
+  await setDoc(companyProfileDoc(uid), payload, { merge: true });
 }
 
 export async function getAppSettings(
@@ -116,14 +120,12 @@ export async function saveAppSettings(
 ): Promise<void> {
   await ensureUserRoot(uid);
 
-  await setDoc(
-    appSettingsDoc(uid),
-    {
-      ...settings,
-      updatedAt: nowIso(),
-    },
-    { merge: true }
-  );
+  const payload = removeUndefinedFields({
+    ...settings,
+    updatedAt: nowIso(),
+  });
+
+  await setDoc(appSettingsDoc(uid), payload, { merge: true });
 }
 
 export function subscribeToCustomers(
@@ -153,12 +155,12 @@ export async function saveCustomer(
 ): Promise<void> {
   await ensureUserRoot(uid);
 
-  const payload: Customer = {
+  const payload = removeUndefinedFields({
     ...customer,
     id: customer.id,
     createdAt: customer.createdAt || nowIso(),
     updatedAt: nowIso(),
-  };
+  }) as Customer;
 
   await setDoc(doc(customersCol(uid), payload.id), payload, { merge: true });
 }
@@ -173,12 +175,12 @@ export async function deleteCustomer(
 export async function saveItem(uid: string, item: Item): Promise<void> {
   await ensureUserRoot(uid);
 
-  const payload: Item = {
+  const payload = removeUndefinedFields({
     ...item,
     id: item.id,
     createdAt: item.createdAt || nowIso(),
     updatedAt: nowIso(),
-  };
+  }) as Item;
 
   await setDoc(doc(itemsCol(uid), payload.id), payload, { merge: true });
 }
@@ -189,12 +191,12 @@ export async function saveItemsBatch(uid: string, items: Item[]): Promise<void> 
   const batch = writeBatch(db);
 
   items.forEach((item) => {
-    const payload: Item = {
+    const payload = removeUndefinedFields({
       ...item,
       id: item.id,
       createdAt: item.createdAt || nowIso(),
       updatedAt: nowIso(),
-    };
+    }) as Item;
 
     batch.set(doc(itemsCol(uid), payload.id), payload, { merge: true });
   });
@@ -215,13 +217,13 @@ export async function saveDeliveryNote(
 ): Promise<void> {
   await ensureUserRoot(uid);
 
-  const payload: DeliveryNote = {
+  const payload = removeUndefinedFields({
     ...note,
     id: note.id,
     lines: Array.isArray(note.lines) ? note.lines : [],
     createdAt: note.createdAt || nowIso(),
     updatedAt: nowIso(),
-  };
+  }) as DeliveryNote;
 
   await setDoc(doc(deliveryNotesCol(uid), payload.id), payload, {
     merge: true,
