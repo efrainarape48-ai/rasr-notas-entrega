@@ -8,7 +8,6 @@ const RIGHT = 195;
 const FOOTER_Y = 282;
 const FOOTER_LINE_Y = FOOTER_Y - 4;
 const BODY_BOTTOM_Y = FOOTER_LINE_Y - 8;
-const MAX_PRODUCTS_PER_PAGE = 20;
 
 const COMPANY_NAME_FONT_SIZE = 15;
 const DOCUMENT_TITLE_FONT_SIZE = 14;
@@ -17,6 +16,8 @@ const TABLE_HEADER_FONT_SIZE = 9;
 const TABLE_BODY_FONT_SIZE = 9;
 const TABLE_ROW_HEIGHT = 6.2;
 const NOTES_LINE_HEIGHT = 4.5;
+const RESERVED_TOTALS_HEIGHT = 24;
+const MIN_ITEMS_ON_LAST_PAGE = 5;
 
 function formatMoney(value: number) {
   return value.toLocaleString(undefined, {
@@ -330,9 +331,80 @@ function drawNotesPage(
   pdf.text(notesLines, LEFT, y);
 }
 
+function getPageLayoutMetrics(pdf: jsPDF, note: DeliveryNote, company: CompanyProfile) {
+  const headerBottomY = drawHeader(pdf, note, company, 1);
+  const customerEndY = drawCustomerBlock(pdf, note, headerBottomY + 9);
+  const firstRowY = drawTableHeader(pdf, customerEndY);
+
+  return {
+    headerBottomY,
+    customerEndY,
+    firstRowY,
+    maxRowsWithoutTotals: Math.max(
+      1,
+      Math.floor((BODY_BOTTOM_Y - firstRowY) / TABLE_ROW_HEIGHT)
+    ),
+    maxRowsWithTotals: Math.max(
+      1,
+      Math.floor((BODY_BOTTOM_Y - RESERVED_TOTALS_HEIGHT - firstRowY) / TABLE_ROW_HEIGHT)
+    ),
+  };
+}
+
+function planItemPages(
+  totalLines: DeliveryNoteLine[],
+  maxRowsWithoutTotals: number,
+  maxRowsWithTotals: number
+) {
+  if (totalLines.length === 0) {
+    return [[]] as DeliveryNoteLine[][];
+  }
+
+  const pages: DeliveryNoteLine[][] = [];
+  let cursor = 0;
+
+  while (cursor < totalLines.length) {
+    const remaining = totalLines.length - cursor;
+
+    if (remaining <= maxRowsWithTotals) {
+      pages.push(totalLines.slice(cursor));
+      break;
+    }
+
+    const nextCursor = cursor + maxRowsWithoutTotals;
+    pages.push(totalLines.slice(cursor, nextCursor));
+    cursor = nextCursor;
+  }
+
+  if (pages.length > 1) {
+    const lastPage = pages[pages.length - 1];
+    const prevPage = pages[pages.length - 2];
+
+    if (lastPage.length < MIN_ITEMS_ON_LAST_PAGE && prevPage.length > MIN_ITEMS_ON_LAST_PAGE) {
+      const needed = MIN_ITEMS_ON_LAST_PAGE - lastPage.length;
+      const movable = Math.min(needed, prevPage.length - MIN_ITEMS_ON_LAST_PAGE);
+
+      if (movable > 0) {
+        const movedItems = prevPage.splice(prevPage.length - movable, movable);
+        pages[pages.length - 1] = [...movedItems, ...lastPage];
+      }
+    }
+  }
+
+  return pages;
+}
+
 function buildPdf(note: DeliveryNote, company: CompanyProfile) {
   const pdf = new jsPDF('p', 'mm', 'a4');
-  const itemPages = chunkArray(note.lines || [], MAX_PRODUCTS_PER_PAGE);
+
+  const layout = getPageLayoutMetrics(pdf, note, company);
+  pdf.deletePage(1);
+
+  const itemPages = planItemPages(
+    note.lines || [],
+    layout.maxRowsWithoutTotals,
+    layout.maxRowsWithTotals
+  );
 
   let pageNumber = 1;
 
