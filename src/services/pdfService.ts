@@ -6,7 +6,17 @@ const PAGE_HEIGHT = 297;
 const LEFT = 15;
 const RIGHT = 195;
 const FOOTER_Y = 282;
-const MAX_PRODUCTS_PER_PAGE = 10;
+const FOOTER_LINE_Y = FOOTER_Y - 4;
+const BODY_BOTTOM_Y = FOOTER_LINE_Y - 8;
+const MAX_PRODUCTS_PER_PAGE = 20;
+
+const COMPANY_NAME_FONT_SIZE = 15;
+const DOCUMENT_TITLE_FONT_SIZE = 14;
+const HEADER_INFO_FONT_SIZE = 8.7;
+const TABLE_HEADER_FONT_SIZE = 9;
+const TABLE_BODY_FONT_SIZE = 9;
+const TABLE_ROW_HEIGHT = 6.2;
+const NOTES_LINE_HEIGHT = 4.5;
 
 function formatMoney(value: number) {
   return value.toLocaleString(undefined, {
@@ -29,6 +39,25 @@ function fitText(pdf: jsPDF, text: string, maxWidth: number) {
   }
 
   return `${current}…`;
+}
+
+function fitTextToLines(
+  pdf: jsPDF,
+  text: string,
+  maxWidth: number,
+  maxLines: number
+) {
+  const clean = safeText(text);
+  if (!clean) return [] as string[];
+
+  const lines = pdf.splitTextToSize(clean, maxWidth) as string[];
+  if (lines.length <= maxLines) return lines;
+
+  const visible = lines.slice(0, maxLines);
+  const remainingLastLine = lines.slice(maxLines - 1).join(' ');
+  visible[maxLines - 1] = fitText(pdf, remainingLastLine, maxWidth);
+
+  return visible;
 }
 
 function chunkArray<T>(arr: T[], chunkSize: number): T[][] {
@@ -74,14 +103,17 @@ function drawFooter(pdf: jsPDF, company: CompanyProfile, pageNumber: number) {
     'Documento interno de nota de entrega. Sin derecho a crédito fiscal. Este documento no constituye factura fiscal y se emite únicamente como constancia de entrega de mercancía.';
 
   pdf.setDrawColor(220, 220, 220);
-  pdf.line(LEFT, FOOTER_Y - 4, RIGHT, FOOTER_Y - 4);
+  pdf.line(LEFT, FOOTER_LINE_Y, RIGHT, FOOTER_LINE_Y);
 
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(8);
   pdf.text(footerText, PAGE_WIDTH / 2, FOOTER_Y, { align: 'center' });
 
-  const disclaimerLines = pdf.splitTextToSize(disclaimer, 175);
-  pdf.text(disclaimerLines, PAGE_WIDTH / 2, FOOTER_Y + 5, { align: 'center' });
+  const disclaimerLines = pdf.splitTextToSize(disclaimer, 175) as string[];
+  pdf.setFontSize(7.5);
+  pdf.text(disclaimerLines, PAGE_WIDTH / 2, FOOTER_Y + 5, {
+    align: 'center',
+  });
 
   pdf.setFontSize(8);
   pdf.text(`Página ${pageNumber}`, RIGHT, PAGE_HEIGHT - 5, {
@@ -96,136 +128,163 @@ function drawHeader(
   pageNumber: number
 ) {
   const hasLogo = tryAddLogo(pdf, company);
-  const textStartX = hasLogo ? 44 : LEFT;
+  const textStartX = hasLogo ? 45 : LEFT;
+  const leftMaxWidth = hasLogo ? 95 : 120;
+
+  let leftY = 18;
 
   pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(18);
-  pdf.text(safeText(company?.name) || 'RASR', textStartX, 20);
+  pdf.setFontSize(COMPANY_NAME_FONT_SIZE);
+
+  const companyNameLines = fitTextToLines(
+    pdf,
+    safeText(company?.name) || 'RASR',
+    leftMaxWidth,
+    2
+  );
+
+  pdf.text(companyNameLines, textStartX, leftY);
+  leftY += Math.max(companyNameLines.length, 1) * 5.2;
 
   pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(9);
-
-  let infoY = 26;
+  pdf.setFontSize(HEADER_INFO_FONT_SIZE);
 
   if (company?.address) {
-    pdf.text(company.address, textStartX, infoY);
-    infoY += 4.5;
+    const addressLines = pdf.splitTextToSize(company.address, leftMaxWidth) as string[];
+    pdf.text(addressLines, textStartX, leftY);
+    leftY += addressLines.length * 4.2;
   }
 
   if (company?.email) {
-    pdf.text(company.email, textStartX, infoY);
-    infoY += 4.5;
+    const emailLines = pdf.splitTextToSize(company.email, leftMaxWidth) as string[];
+    pdf.text(emailLines, textStartX, leftY);
+    leftY += emailLines.length * 4.2;
   }
 
   if (company?.phone) {
-    pdf.text(company.phone, textStartX, infoY);
-    infoY += 4.5;
+    pdf.text(company.phone, textStartX, leftY);
+    leftY += 4.2;
   }
 
   if (company?.taxId) {
-    pdf.text(`Identificación fiscal: ${company.taxId}`, textStartX, infoY);
+    const taxIdText = fitText(pdf, `Identificación fiscal: ${company.taxId}`, leftMaxWidth);
+    pdf.text(taxIdText, textStartX, leftY);
+    leftY += 4.2;
   }
 
   pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(16);
+  pdf.setFontSize(DOCUMENT_TITLE_FONT_SIZE);
   pdf.text('NOTA DE ENTREGA', RIGHT, 18, { align: 'right' });
 
   pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(10);
-  pdf.text(`Número: ${note.noteNumber}`, RIGHT, 25, { align: 'right' });
-  pdf.text(`Fecha: ${note.issueDate}`, RIGHT, 30, { align: 'right' });
-  pdf.text(`Estado: ${note.status}`, RIGHT, 35, { align: 'right' });
-  pdf.text(`Hoja: ${pageNumber}`, RIGHT, 40, { align: 'right' });
+  pdf.setFontSize(9.5);
+
+  let rightY = 24;
+  pdf.text(`Número: ${note.noteNumber}`, RIGHT, rightY, { align: 'right' });
+  rightY += 4.8;
+  pdf.text(`Fecha: ${note.issueDate}`, RIGHT, rightY, { align: 'right' });
+  rightY += 4.8;
+  pdf.text(`Estado: ${note.status}`, RIGHT, rightY, { align: 'right' });
+  rightY += 4.8;
+  pdf.text(`Hoja: ${pageNumber}`, RIGHT, rightY, { align: 'right' });
+
+  const headerBottomY = Math.max(46, leftY + 3, rightY + 4);
 
   pdf.setDrawColor(210, 210, 210);
-  pdf.line(LEFT, 45, RIGHT, 45);
+  pdf.line(LEFT, headerBottomY, RIGHT, headerBottomY);
+
+  return headerBottomY;
 }
 
-function drawCustomerBlock(pdf: jsPDF, note: DeliveryNote) {
+function drawCustomerBlock(pdf: jsPDF, note: DeliveryNote, startY: number) {
   pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(11);
-  pdf.text('Cliente / Receptor', LEFT, 54);
+  pdf.setFontSize(10);
+  pdf.text('Cliente / Receptor', LEFT, startY);
 
   pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(10);
+  pdf.setFontSize(9.5);
 
-  let y = 60;
+  let y = startY + 6;
 
-  pdf.text(safeText(note.customerName), LEFT, y);
-  y += 5;
+  const customerNameLines = pdf.splitTextToSize(
+    safeText(note.customerName) || 'Sin cliente',
+    120
+  ) as string[];
+  pdf.text(customerNameLines, LEFT, y);
+  y += Math.max(customerNameLines.length, 1) * 4.6;
 
   if (note.customerAddress) {
-    const addressLines = pdf.splitTextToSize(note.customerAddress, 120);
+    const addressLines = pdf.splitTextToSize(note.customerAddress, 120) as string[];
     pdf.text(addressLines, LEFT, y);
-    y += addressLines.length * 4.5;
+    y += addressLines.length * 4.3;
   }
 
   if (note.customerPhone) {
     pdf.text(`Teléfono: ${note.customerPhone}`, LEFT, y);
-    y += 5;
+    y += 4.8;
   }
 
-  return Math.max(y + 8, 84);
+  return Math.max(y + 5, startY + 18);
 }
 
 function drawTableHeader(pdf: jsPDF, startY: number) {
   pdf.setDrawColor(200, 200, 200);
-  pdf.line(LEFT, startY - 4, RIGHT, startY - 4);
+  pdf.line(LEFT, startY - 3, RIGHT, startY - 3);
 
   pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(10);
+  pdf.setFontSize(TABLE_HEADER_FONT_SIZE);
   pdf.text('Producto', LEFT, startY);
-  pdf.text('Cant.', 130, startY, { align: 'right' });
-  pdf.text('Precio', 160, startY, { align: 'right' });
+  pdf.text('Cant.', 132, startY, { align: 'right' });
+  pdf.text('Precio', 162, startY, { align: 'right' });
   pdf.text('Total', RIGHT, startY, { align: 'right' });
 
-  pdf.line(LEFT, startY + 3, RIGHT, startY + 3);
+  pdf.line(LEFT, startY + 2.5, RIGHT, startY + 2.5);
 
-  return startY + 11;
+  return startY + 7;
 }
 
 function drawLineItems(pdf: jsPDF, lines: DeliveryNoteLine[], startY: number) {
   let y = drawTableHeader(pdf, startY);
 
   pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(10);
+  pdf.setFontSize(TABLE_BODY_FONT_SIZE);
 
   if (lines.length === 0) {
     pdf.setTextColor(110, 110, 110);
     pdf.text('No hay productos agregados.', LEFT, y);
     pdf.setTextColor(0, 0, 0);
-    return y + 8;
+    return y + 6;
   }
 
   lines.forEach((line) => {
-    const name = fitText(pdf, safeText(line.name), 95);
+    const name = fitText(pdf, safeText(line.name), 102);
 
     pdf.text(name, LEFT, y);
-    pdf.text(String(line.quantity), 130, y, { align: 'right' });
-    pdf.text(formatMoney(line.price), 160, y, { align: 'right' });
+    pdf.text(String(line.quantity), 132, y, { align: 'right' });
+    pdf.text(formatMoney(line.price), 162, y, { align: 'right' });
     pdf.text(formatMoney(line.total), RIGHT, y, { align: 'right' });
 
-    y += 8;
+    y += TABLE_ROW_HEIGHT;
   });
 
   return y;
 }
 
 function drawTotals(pdf: jsPDF, note: DeliveryNote, startY: number) {
-  let y = startY + 4;
+  let y = startY + 2;
 
   pdf.setDrawColor(210, 210, 210);
   pdf.line(120, y, RIGHT, y);
 
-  y += 8;
+  y += 7;
   pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(10);
-  pdf.text('Subtotal', 160, y, { align: 'right' });
+  pdf.setFontSize(9.5);
+  pdf.text('Subtotal', 162, y, { align: 'right' });
   pdf.text(formatMoney(note.subtotal), RIGHT, y, { align: 'right' });
 
-  y += 7;
-  pdf.setFontSize(12);
-  pdf.text('Total', 160, y, { align: 'right' });
+  y += 6.5;
+  pdf.setFontSize(11);
+  pdf.text('Total', 162, y, { align: 'right' });
   pdf.text(formatMoney(note.total), RIGHT, y, { align: 'right' });
 
   return y;
@@ -236,15 +295,15 @@ function drawNotesOnCurrentPage(
   notesLines: string[],
   startY: number
 ) {
-  let y = startY + 14;
+  let y = startY + 10;
 
   pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(11);
+  pdf.setFontSize(10);
   pdf.text('Observaciones', LEFT, y);
 
   y += 6;
   pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(10);
+  pdf.setFontSize(9.5);
   pdf.text(notesLines, LEFT, y);
 }
 
@@ -256,18 +315,18 @@ function drawNotesPage(
   notesLines: string[]
 ) {
   pdf.addPage();
-  drawHeader(pdf, note, company, pageNumber);
+  const headerBottomY = drawHeader(pdf, note, company, pageNumber);
   drawFooter(pdf, company, pageNumber);
 
-  let y = 58;
+  let y = headerBottomY + 12;
 
   pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(12);
+  pdf.setFontSize(10.5);
   pdf.text('Observaciones', LEFT, y);
 
-  y += 8;
+  y += 6;
   pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(10);
+  pdf.setFontSize(9.5);
   pdf.text(notesLines, LEFT, y);
 }
 
@@ -283,51 +342,53 @@ function buildPdf(note: DeliveryNote, company: CompanyProfile) {
       pageNumber += 1;
     }
 
-    drawHeader(pdf, note, company, pageNumber);
+    const headerBottomY = drawHeader(pdf, note, company, pageNumber);
     drawFooter(pdf, company, pageNumber);
 
-    const customerEndY = drawCustomerBlock(pdf, note);
+    const customerEndY = drawCustomerBlock(pdf, note, headerBottomY + 9);
     const itemsEndY = drawLineItems(pdf, pageLines, customerEndY);
 
     if (index === itemPages.length - 1) {
       const totalsEndY = drawTotals(pdf, note, itemsEndY);
 
       if (note.notes) {
-        const notesLines = pdf.splitTextToSize(note.notes, 180);
+        const notesLines = pdf.splitTextToSize(note.notes, 180) as string[];
 
-        const notesStartY = totalsEndY + 14;
-        const availableHeight = 260 - notesStartY;
+        const notesTitleY = totalsEndY + 10;
+        const notesTextY = notesTitleY + 6;
         const linesFitCurrentPage = Math.max(
           0,
-          Math.floor((availableHeight - 6) / 4.5)
+          Math.floor((BODY_BOTTOM_Y - notesTextY) / NOTES_LINE_HEIGHT)
         );
 
-        if (notesLines.length > 0) {
-          if (notesLines.length <= linesFitCurrentPage) {
-            drawNotesOnCurrentPage(pdf, notesLines, totalsEndY);
-          } else {
-            const currentChunk =
-              linesFitCurrentPage > 0
-                ? notesLines.slice(0, linesFitCurrentPage)
-                : [];
+        if (notesLines.length <= linesFitCurrentPage) {
+          drawNotesOnCurrentPage(pdf, notesLines, totalsEndY);
+        } else {
+          const currentChunk =
+            linesFitCurrentPage > 0
+              ? notesLines.slice(0, linesFitCurrentPage)
+              : [];
 
-            const remaining =
-              linesFitCurrentPage > 0
-                ? notesLines.slice(linesFitCurrentPage)
-                : notesLines;
+          const remaining =
+            linesFitCurrentPage > 0
+              ? notesLines.slice(linesFitCurrentPage)
+              : notesLines;
 
-            if (currentChunk.length > 0) {
-              drawNotesOnCurrentPage(pdf, currentChunk, totalsEndY);
-            }
-
-            const notesPerExtraPage = 45;
-            const extraPages = chunkArray(remaining, notesPerExtraPage);
-
-            extraPages.forEach((chunk) => {
-              pageNumber += 1;
-              drawNotesPage(pdf, note, company, pageNumber, chunk);
-            });
+          if (currentChunk.length > 0) {
+            drawNotesOnCurrentPage(pdf, currentChunk, totalsEndY);
           }
+
+          const extraNotesStartY = 64;
+          const notesPerExtraPage = Math.max(
+            1,
+            Math.floor((BODY_BOTTOM_Y - extraNotesStartY) / NOTES_LINE_HEIGHT)
+          );
+          const extraPages = chunkArray(remaining, notesPerExtraPage);
+
+          extraPages.forEach((chunk) => {
+            pageNumber += 1;
+            drawNotesPage(pdf, note, company, pageNumber, chunk);
+          });
         }
       }
     }
