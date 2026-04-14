@@ -331,15 +331,13 @@ function drawNotesPage(
   pdf.text(notesLines, LEFT, y);
 }
 
-function getPageLayoutMetrics(pdf: jsPDF, note: DeliveryNote, company: CompanyProfile) {
-  const headerBottomY = drawHeader(pdf, note, company, 1);
-  const customerEndY = drawCustomerBlock(pdf, note, headerBottomY + 9);
-  const firstRowY = drawTableHeader(pdf, customerEndY);
+function getPageLayoutMetrics(note: DeliveryNote, company: CompanyProfile) {
+  const measurePdf = new jsPDF('p', 'mm', 'a4');
+  const headerBottomY = drawHeader(measurePdf, note, company, 1);
+  const customerEndY = drawCustomerBlock(measurePdf, note, headerBottomY + 9);
+  const firstRowY = drawTableHeader(measurePdf, customerEndY);
 
   return {
-    headerBottomY,
-    customerEndY,
-    firstRowY,
     maxRowsWithoutTotals: Math.max(
       1,
       Math.floor((BODY_BOTTOM_Y - firstRowY) / TABLE_ROW_HEIGHT)
@@ -397,9 +395,7 @@ function planItemPages(
 function buildPdf(note: DeliveryNote, company: CompanyProfile) {
   const pdf = new jsPDF('p', 'mm', 'a4');
 
-  const layout = getPageLayoutMetrics(pdf, note, company);
-  pdf.deletePage(1);
-
+  const layout = getPageLayoutMetrics(note, company);
   const itemPages = planItemPages(
     note.lines || [],
     layout.maxRowsWithoutTotals,
@@ -482,7 +478,7 @@ export function saveProfessionalPDF(
   company: CompanyProfile
 ): void {
   const pdf = buildPdf(note, company);
-  const safeCustomer = note.customerName.replace(/\s+/g, '_') || 'cliente';
+  const safeCustomer = (note.customerName || 'cliente').replace(/\s+/g, '_');
   const fileName = `${note.noteNumber}_${safeCustomer}.pdf`;
   pdf.save(fileName);
 }
