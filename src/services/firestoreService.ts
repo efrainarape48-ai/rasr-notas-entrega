@@ -8,6 +8,7 @@ import {
   setDoc,
   deleteDoc,
   writeBatch,
+  runTransaction,
   type QueryDocumentSnapshot,
   type DocumentData,
 } from 'firebase/firestore';
@@ -18,7 +19,12 @@ import type {
   Customer,
   Item,
   DeliveryNote,
+  DeliveryNoteLine,
 } from '../types';
+
+type StoredDeliveryNote = DeliveryNote & {
+  inventoryApplied?: boolean;
+};
 
 const nowIso = () => new Date().toISOString();
 
@@ -96,6 +102,64 @@ function subscribeOrderedCollection<T extends { id?: string }>(
       callback([]);
     }
   );
+}
+
+function normalizeLines(lines: DeliveryNoteLine[] | undefined): DeliveryNoteLine[] {
+  return Array.isArray(lines) ? lines : [];
+}
+
+function statusConsumesStock(note: Pick<DeliveryNote, 'status'> | null | undefined) {
+  return !!note && note.status !== 'canceled';
+}
+
+function aggregateLineQuantities(lines: DeliveryNoteLine[] | undefined) {
+  const quantities = new Map<string, { quantity: number; name: string }>();
+
+  normalizeLines(lines).forEach((line) => {
+    if (!line?.itemId) return;
+
+    const current = quantities.get(line.itemId);
+    quantities.set(line.itemId, {
+      quantity: (current?.quantity || 0) + Number(line.quantity || 0),
+      name: line.name || current?.name || line.itemId,
+    });
+  });
+
+  return quantities;
+}
+
+function getEffectiveInventoryImpact(note: StoredDeliveryNote | null | undefined) {
+  if (!statusConsumesStock(note) || note.inventoryApplied !== true) {
+    return new Map<string, { quantity: number; name: string }>();
+  }
+
+  return aggregateLineQuantities(note?.lines);
+}
+
+function buildInventoryAdjustments(
+  previousNote: StoredDeliveryNote | null | undefined,
+  nextNote: StoredDeliveryNote | null | undefined
+) {
+  const previous = getEffectiveInventoryImpact(previousNote);
+  const next = getEffectiveInventoryImpact(nextNote);
+  const itemIds = new Set([...previous.keys(), ...next.keys()]);
+
+  const adjustments = new Map<string, { delta: number; name: string }>();
+
+  itemIds.forEach((itemId) => {
+    const previousQty = previous.get(itemId)?.quantity || 0;
+    const nextQty = next.get(itemId)?.quantity || 0;
+    const delta = previousQty - nextQty;
+
+    if (delta !== 0) {
+      adjustments.set(itemId, {
+        delta,
+        name: next.get(itemId)?.name || previous.get(itemId)?.name || itemId,
+      });
+    }
+  });
+
+  return adjustments;
 }
 
 export async function getCompanyProfile(
@@ -232,13 +296,52 @@ export async function saveDeliveryNote(
   const payload = deepClean({
     ...note,
     id: note.id,
-    lines: Array.isArray(note.lines) ? note.lines : [],
+    lines: normalizeLines(note.lines),
     createdAt: note.createdAt || nowIso(),
     updatedAt: nowIso(),
-  }) as DeliveryNote;
+    inventoryApplied: statusConsumesStock(note),
+  }) as StoredDeliveryNote;
 
-  await setDoc(doc(deliveryNotesCol(uid), payload.id), payload, {
-    merge: true,
+  await runTransaction(db, async (transaction) => {
+    const noteRef = doc(deliveryNotesCol(uid), payload.id);
+    const previousNoteSnap = await transaction.get(noteRef);
+    const previousNote = previousNoteSnap.exists()
+      ? (previousNoteSnap.data() as StoredDeliveryNote)
+      : null;
+
+    const adjustments = buildInventoryAdjustments(previousNote, payload);
+
+    for (const [itemId, { delta, name }] of adjustments.entries()) {
+      const itemRef = doc(itemsCol(uid), itemId);
+      const itemSnap = await transaction.get(itemRef);
+
+      if (!itemSnap.exists()) {
+        if (delta > 0) {
+          continue;
+        }
+
+        throw new Error(`El producto "${name}" ya no existe en inventario.`);
+      }
+
+      const itemData = itemSnap.data() as Item;
+      const currentStock = Number(itemData.stock ?? 0);
+      const nextStock = currentStock + delta;
+
+      if (nextStock < 0) {
+        throw new Error(
+          `Stock insuficiente para "${name}". Disponible: ${currentStock}.`
+        );
+      }
+
+      transaction.update(itemRef, {
+        stock: nextStock,
+        updatedAt: nowIso(),
+      });
+    }
+
+    transaction.set(noteRef, payload, {
+      merge: true,
+    });
   });
 }
 
@@ -246,5 +349,35 @@ export async function deleteDeliveryNote(
   uid: string,
   noteId: string
 ): Promise<void> {
-  await deleteDoc(doc(deliveryNotesCol(uid), noteId));
+  await runTransaction(db, async (transaction) => {
+    const noteRef = doc(deliveryNotesCol(uid), noteId);
+    const noteSnap = await transaction.get(noteRef);
+
+    if (!noteSnap.exists()) {
+      return;
+    }
+
+    const existingNote = noteSnap.data() as StoredDeliveryNote;
+    const adjustments = buildInventoryAdjustments(existingNote, null);
+
+    for (const [itemId, { delta }] of adjustments.entries()) {
+      const itemRef = doc(itemsCol(uid), itemId);
+      const itemSnap = await transaction.get(itemRef);
+
+      if (!itemSnap.exists()) {
+        continue;
+      }
+
+      const itemData = itemSnap.data() as Item;
+      const currentStock = Number(itemData.stock ?? 0);
+      const nextStock = currentStock + delta;
+
+      transaction.update(itemRef, {
+        stock: Math.max(0, nextStock),
+        updatedAt: nowIso(),
+      });
+    }
+
+    transaction.delete(noteRef);
+  });
 }
