@@ -351,20 +351,26 @@ function drawCustomerBlock(
 }
 
 function drawTableHeader(pdf: jsPDF, startY: number) {
-  pdf.setDrawColor(200, 200, 200);
-  pdf.line(LEFT, startY - 3, RIGHT, startY - 3);
+  const headerTopY = startY - 5.4;
+  const headerHeight = 8.8;
+
+  pdf.setFillColor(242, 244, 247);
+  pdf.rect(LEFT, headerTopY, RIGHT - LEFT, headerHeight, 'F');
+
+  pdf.setDrawColor(205, 211, 220);
+  pdf.line(LEFT, headerTopY, RIGHT, headerTopY);
+  pdf.line(LEFT, headerTopY + headerHeight, RIGHT, headerTopY + headerHeight);
 
   pdf.setTextColor(0, 0, 0);
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(TABLE_HEADER_FONT_SIZE);
-  pdf.text('Producto', LEFT, startY);
+
+  pdf.text('Producto', LEFT + 2, startY);
   pdf.text('Cant.', QTY_X, startY, { align: 'right' });
   pdf.text('Precio', PRICE_X, startY, { align: 'right' });
-  pdf.text('Total', TOTAL_X, startY, { align: 'right' });
+  pdf.text('Total', TOTAL_X - 1, startY, { align: 'right' });
 
-  pdf.line(LEFT, startY + 3, RIGHT, startY + 3);
-
-  return startY + 8.5;
+  return startY + 9.5;
 }
 
 function drawLineItems(pdf: jsPDF, lines: DeliveryNoteLine[], startY: number) {
