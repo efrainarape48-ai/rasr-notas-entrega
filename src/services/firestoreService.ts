@@ -108,6 +108,13 @@ function normalizeLines(lines: DeliveryNoteLine[] | undefined): DeliveryNoteLine
   return Array.isArray(lines) ? lines : [];
 }
 
+/**
+ * En esta app, una nota consume inventario aunque esté en borrador,
+ * entregada o cancelada.
+ *
+ * Se deja así porque "cancelado" se está usando como estado administrativo
+ * o de pago, no como anulación de entrega.
+ */
 function statusConsumesStock(note: Pick<DeliveryNote, 'status'> | null | undefined) {
   return !!note;
 }
@@ -117,8 +124,13 @@ function inventoryWasApplied(note: StoredDeliveryNote | null | undefined) {
     return false;
   }
 
-  // Compatibilidad con notas antiguas guardadas antes de existir inventoryApplied.
-  // Si el campo no existe, asumimos que la nota ya había impactado inventario.
+  /**
+   * Compatibilidad con notas antiguas.
+   *
+   * Algunas notas anteriores pueden no tener inventoryApplied.
+   * Si el campo no existe, asumimos que esa nota ya había impactado inventario.
+   * Si inventoryApplied está explícitamente en false, no se toma como inventario aplicado.
+   */
   return note?.inventoryApplied !== false;
 }
 
@@ -159,6 +171,11 @@ function buildInventoryAdjustments(
   itemIds.forEach((itemId) => {
     const previousQty = previous.get(itemId)?.quantity || 0;
     const nextQty = next.get(itemId)?.quantity || 0;
+
+    /**
+     * delta positivo: devuelve stock al inventario.
+     * delta negativo: descuenta stock del inventario.
+     */
     const delta = previousQty - nextQty;
 
     if (delta !== 0) {
@@ -314,6 +331,11 @@ export async function saveDeliveryNote(
 
   await runTransaction(db, async (transaction) => {
     const noteRef = doc(deliveryNotesCol(uid), payload.id);
+
+    /**
+     * LECTURA 1:
+     * Primero se lee la nota anterior.
+     */
     const previousNoteSnap = await transaction.get(noteRef);
     const previousNote = previousNoteSnap.exists()
       ? (previousNoteSnap.data() as StoredDeliveryNote)
@@ -321,11 +343,49 @@ export async function saveDeliveryNote(
 
     const adjustments = buildInventoryAdjustments(previousNote, payload);
 
-    for (const [itemId, { delta, name }] of adjustments.entries()) {
-      const itemRef = doc(itemsCol(uid), itemId);
-      const itemSnap = await transaction.get(itemRef);
+    const adjustmentRows = Array.from(adjustments.entries()).map(
+      ([itemId, adjustment]) => ({
+        itemId,
+        itemRef: doc(itemsCol(uid), itemId),
+        delta: adjustment.delta,
+        name: adjustment.name,
+      })
+    );
+
+    /**
+     * LECTURAS 2:
+     * Firestore exige que todas las lecturas dentro de una transacción
+     * ocurran antes de cualquier escritura.
+     *
+     * Por eso aquí se leen todos los productos primero.
+     */
+    const itemReads = [];
+
+    for (const row of adjustmentRows) {
+      const itemSnap = await transaction.get(row.itemRef);
+      itemReads.push({
+        ...row,
+        itemSnap,
+      });
+    }
+
+    /**
+     * VALIDACIÓN:
+     * Todavía no se escribe nada. Solo se valida stock.
+     */
+    const itemUpdates = [];
+
+    for (const row of itemReads) {
+      const { itemRef, itemSnap, delta, name } = row;
 
       if (!itemSnap.exists()) {
+        /**
+         * Si delta es positivo, significa que estamos devolviendo stock
+         * porque se quitó o redujo un producto de la nota.
+         *
+         * Si el producto ya no existe en inventario, se permite guardar
+         * la nota y simplemente no se restaura ese producto eliminado.
+         */
         if (delta > 0) {
           continue;
         }
@@ -343,8 +403,20 @@ export async function saveDeliveryNote(
         );
       }
 
-      transaction.update(itemRef, {
-        stock: nextStock,
+      itemUpdates.push({
+        itemRef,
+        nextStock,
+      });
+    }
+
+    /**
+     * ESCRITURAS:
+     * Después de haber hecho todas las lecturas, ahora sí se actualiza
+     * el inventario y se guarda la nota.
+     */
+    for (const update of itemUpdates) {
+      transaction.update(update.itemRef, {
+        stock: update.nextStock,
         updatedAt: nowIso(),
       });
     }
@@ -361,6 +433,11 @@ export async function deleteDeliveryNote(
 ): Promise<void> {
   await runTransaction(db, async (transaction) => {
     const noteRef = doc(deliveryNotesCol(uid), noteId);
+
+    /**
+     * LECTURA 1:
+     * Leer la nota antes de escribir cualquier cosa.
+     */
     const noteSnap = await transaction.get(noteRef);
 
     if (!noteSnap.exists()) {
@@ -370,9 +447,33 @@ export async function deleteDeliveryNote(
     const existingNote = noteSnap.data() as StoredDeliveryNote;
     const adjustments = buildInventoryAdjustments(existingNote, null);
 
-    for (const [itemId, { delta }] of adjustments.entries()) {
-      const itemRef = doc(itemsCol(uid), itemId);
-      const itemSnap = await transaction.get(itemRef);
+    const adjustmentRows = Array.from(adjustments.entries()).map(
+      ([itemId, adjustment]) => ({
+        itemId,
+        itemRef: doc(itemsCol(uid), itemId),
+        delta: adjustment.delta,
+        name: adjustment.name,
+      })
+    );
+
+    /**
+     * LECTURAS 2:
+     * Leer todos los productos antes de escribir.
+     */
+    const itemReads = [];
+
+    for (const row of adjustmentRows) {
+      const itemSnap = await transaction.get(row.itemRef);
+      itemReads.push({
+        ...row,
+        itemSnap,
+      });
+    }
+
+    const itemUpdates = [];
+
+    for (const row of itemReads) {
+      const { itemRef, itemSnap, delta } = row;
 
       if (!itemSnap.exists()) {
         continue;
@@ -380,10 +481,21 @@ export async function deleteDeliveryNote(
 
       const itemData = itemSnap.data() as Item;
       const currentStock = Number(itemData.stock ?? 0);
-      const nextStock = currentStock + delta;
+      const nextStock = Math.max(0, currentStock + delta);
 
-      transaction.update(itemRef, {
-        stock: Math.max(0, nextStock),
+      itemUpdates.push({
+        itemRef,
+        nextStock,
+      });
+    }
+
+    /**
+     * ESCRITURAS:
+     * Restaurar inventario y eliminar la nota.
+     */
+    for (const update of itemUpdates) {
+      transaction.update(update.itemRef, {
+        stock: update.nextStock,
         updatedAt: nowIso(),
       });
     }
