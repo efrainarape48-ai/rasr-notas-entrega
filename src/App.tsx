@@ -32,15 +32,14 @@ import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import { auth } from './firebase';
 import * as firestoreService from './services/firestoreService';
+import { signInWithGooglePopup } from './services/authService';
 import { saveProfessionalPDF, getProfessionalPDFBlob } from './services/pdfService';
-import { 
+ import { 
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
-  updateProfile,
-  signInWithPopup,
-  GoogleAuthProvider
+  updateProfile
 } from 'firebase/auth';
 import { 
   Customer, 
@@ -437,8 +436,10 @@ const getReadableErrorMessage = (error: any) => {
       return 'Cerraste la ventana de Google antes de completar el inicio de sesión.';
     case 'auth/popup-blocked':
       return 'El navegador bloqueó la ventana emergente de Google.';
-    case 'auth/cancelled-popup-request':
+        case 'auth/cancelled-popup-request':
       return 'Se canceló el intento de inicio de sesión con Google.';
+    case 'auth/network-request-failed':
+      return 'Firebase no pudo completar la petición de red del inicio con Google. En Vercel casi siempre es configuración: agrega rasrnotas.vercel.app en Firebase Authentication > Settings > Authorized domains y revisa que la API key permita este dominio y rasr-app.firebaseapp.com.';
     case 'auth/unauthorized-domain':
       return 'Este dominio no está autorizado para iniciar sesión con Google en Firebase.';
     case 'auth/account-exists-with-different-credential':
@@ -764,9 +765,7 @@ function App() {
       setPendingRegistration(null);
       setIsSubmitting(true);
       try {
-        const provider = new GoogleAuthProvider();
-        provider.setCustomParameters({ prompt: 'select_account' });
-        await signInWithPopup(auth, provider);
+                await signInWithGooglePopup(auth, 'login');
       } catch (err: any) {
         console.error('Google login error:', err);
         setError(getReadableErrorMessage(err));
@@ -885,17 +884,16 @@ function App() {
         return;
       }
 
-      setPendingRegistration({ name: name.trim(), email: email.trim(), password });
+            setPendingRegistration({ name: name.trim(), email: email.trim(), password });
       navigate('register-company');
     };
 
     const handleGoogleRegister = async () => {
       setError(null);
       setPendingRegistration(null);
+
       try {
-        const provider = new GoogleAuthProvider();
-        provider.setCustomParameters({ prompt: 'select_account' });
-        await signInWithPopup(auth, provider);
+        await signInWithGooglePopup(auth, 'register');
       } catch (err: any) {
         console.error('Google registration error:', err);
         setError(getReadableErrorMessage(err));
