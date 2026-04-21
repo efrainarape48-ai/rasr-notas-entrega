@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import type { CompanyProfile, Customer, DeliveryNote, DeliveryNoteLine } from '../types';
+import type { CompanyProfile, Customer, DeliveryNote, DeliveryNoteLine, DeliveryStatus } from '../types';
 
 const PAGE_WIDTH = 210;
 const PAGE_HEIGHT = 297;
@@ -9,17 +9,17 @@ const FOOTER_Y = 282;
 const FOOTER_LINE_Y = FOOTER_Y - 4;
 const BODY_BOTTOM_Y = FOOTER_LINE_Y - 8;
 
-const LOGO_SIZE = 32;
+const LOGO_SIZE = 36;
 const LOGO_Y = 12;
-const COMPANY_NAME_FONT_SIZE = 12;
-const DOCUMENT_TITLE_FONT_SIZE = 10.2;
-const DOCUMENT_NUMBER_FONT_SIZE = 10;
-const HEADER_INFO_FONT_SIZE = 8.6;
+const COMPANY_NAME_FONT_SIZE = 11;
+const DOCUMENT_TITLE_FONT_SIZE = 10.5;
+const DOCUMENT_NUMBER_FONT_SIZE = 10.2;
+const HEADER_INFO_FONT_SIZE = 8.5;
 const CUSTOMER_TITLE_FONT_SIZE = 10.5;
 const CUSTOMER_BODY_FONT_SIZE = 9.7;
-const TABLE_HEADER_FONT_SIZE = 10;
-const TABLE_BODY_FONT_SIZE = 10.2;
-const TABLE_ROW_HEIGHT = 7.1;
+const TABLE_HEADER_FONT_SIZE = 10.6;
+const TABLE_BODY_FONT_SIZE = 11;
+const TABLE_ROW_HEIGHT = 7.8;
 const NOTES_LINE_HEIGHT = 4.5;
 const RESERVED_TOTALS_HEIGHT = 25;
 const MIN_ITEMS_ON_LAST_PAGE = 5;
@@ -29,9 +29,22 @@ const PRICE_X = 162;
 const TOTAL_X = RIGHT;
 const PRODUCT_MAX_WIDTH = QTY_X - LEFT - 7;
 
-type DeliveryNoteWithCustomerDetails = DeliveryNote & {
-  customerEmail?: string;
-  customerTaxId?: string;
+const STATUS_CONFIG: Record<DeliveryStatus, { label: string; fill: [number, number, number]; text: [number, number, number] }> = {
+  draft: {
+    label: 'Borrador',
+    fill: [232, 238, 247],
+    text: [30, 58, 95],
+  },
+  delivered: {
+    label: 'Entregado',
+    fill: [219, 245, 232],
+    text: [18, 104, 60],
+  },
+  canceled: {
+    label: 'Cancelado',
+    fill: [254, 243, 199],
+    text: [146, 64, 14],
+  },
 };
 
 function formatMoney(value: number) {
@@ -43,6 +56,18 @@ function formatMoney(value: number) {
 
 function safeText(value?: string) {
   return (value || '').trim();
+}
+
+function getStatusConfig(status?: string) {
+  if (status === 'delivered' || status === 'draft' || status === 'canceled') {
+    return STATUS_CONFIG[status];
+  }
+
+  return {
+    label: safeText(status) || 'Sin estado',
+    fill: [238, 238, 238] as [number, number, number],
+    text: [80, 80, 80] as [number, number, number],
+  };
 }
 
 function fitText(pdf: jsPDF, text: string, maxWidth: number) {
@@ -123,18 +148,43 @@ function drawFooter(pdf: jsPDF, company: CompanyProfile, pageNumber: number) {
 
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(8);
+  pdf.setTextColor(0, 0, 0);
   pdf.text(footerText, PAGE_WIDTH / 2, FOOTER_Y, { align: 'center' });
 
   const disclaimerLines = pdf.splitTextToSize(disclaimer, 175) as string[];
   pdf.setFontSize(7.5);
+  pdf.setTextColor(90, 90, 90);
   pdf.text(disclaimerLines, PAGE_WIDTH / 2, FOOTER_Y + 5, {
     align: 'center',
   });
 
+  pdf.setTextColor(0, 0, 0);
   pdf.setFontSize(8);
   pdf.text(`Página ${pageNumber}`, RIGHT, PAGE_HEIGHT - 5, {
     align: 'right',
   });
+}
+
+function drawStatusBadge(pdf: jsPDF, status: string | undefined, rightX: number, y: number) {
+  const config = getStatusConfig(status);
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(8.2);
+
+  const paddingX = 2.8;
+  const badgeHeight = 5.2;
+  const textWidth = pdf.getTextWidth(config.label);
+  const badgeWidth = textWidth + paddingX * 2;
+  const x = rightX - badgeWidth;
+
+  pdf.setFillColor(...config.fill);
+  pdf.roundedRect(x, y - 3.7, badgeWidth, badgeHeight, 1.5, 1.5, 'F');
+
+  pdf.setTextColor(...config.text);
+  pdf.text(config.label, rightX - paddingX, y, { align: 'right' });
+  pdf.setTextColor(0, 0, 0);
+
+  return y + 5.4;
 }
 
 function drawHeader(
@@ -145,10 +195,11 @@ function drawHeader(
 ) {
   const hasLogo = tryAddLogo(pdf, company);
   const textStartX = hasLogo ? LEFT + LOGO_SIZE + 6 : LEFT;
-  const leftMaxWidth = hasLogo ? 92 : 122;
+  const leftMaxWidth = hasLogo ? 88 : 122;
 
   let leftY = 17;
 
+  pdf.setTextColor(0, 0, 0);
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(COMPANY_NAME_FONT_SIZE);
 
@@ -198,16 +249,20 @@ function drawHeader(
 
   rightY += 5;
   pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(9);
+  pdf.setFontSize(8.8);
   pdf.text(`Fecha: ${note.issueDate}`, RIGHT, rightY, { align: 'right' });
-  rightY += 4.8;
-  pdf.text(`Estado: ${note.status}`, RIGHT, rightY, { align: 'right' });
-  rightY += 4.8;
+
+  rightY += 5.2;
+  rightY = drawStatusBadge(pdf, note.status, RIGHT, rightY);
+
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(8.5);
   pdf.text(`Hoja: ${pageNumber}`, RIGHT, rightY, { align: 'right' });
+  rightY += 4.8;
 
   const headerBottomY = Math.max(
     LOGO_Y + LOGO_SIZE + 5,
-    49,
+    53,
     leftY + 3,
     rightY + 4
   );
@@ -223,14 +278,12 @@ function getCustomerField(
   customer: Customer | null | undefined,
   field: keyof Pick<Customer, 'name' | 'email' | 'phone' | 'address' | 'taxId'>
 ) {
-  const noteWithDetails = note as DeliveryNoteWithCustomerDetails;
-
   const noteFieldMap: Record<string, string | undefined> = {
     name: note.customerName,
-    email: noteWithDetails.customerEmail,
+    email: note.customerEmail,
     phone: note.customerPhone,
     address: note.customerAddress,
-    taxId: noteWithDetails.customerTaxId,
+    taxId: note.customerTaxId,
   };
 
   return safeText(customer?.[field]) || safeText(noteFieldMap[field]);
@@ -264,6 +317,7 @@ function drawCustomerBlock(
   const customerEmail = getCustomerField(note, customer, 'email');
   const customerAddress = getCustomerField(note, customer, 'address');
 
+  pdf.setTextColor(0, 0, 0);
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(CUSTOMER_TITLE_FONT_SIZE);
   pdf.text('Cliente', LEFT, startY);
@@ -300,6 +354,7 @@ function drawTableHeader(pdf: jsPDF, startY: number) {
   pdf.setDrawColor(200, 200, 200);
   pdf.line(LEFT, startY - 3, RIGHT, startY - 3);
 
+  pdf.setTextColor(0, 0, 0);
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(TABLE_HEADER_FONT_SIZE);
   pdf.text('Producto', LEFT, startY);
@@ -309,7 +364,7 @@ function drawTableHeader(pdf: jsPDF, startY: number) {
 
   pdf.line(LEFT, startY + 3, RIGHT, startY + 3);
 
-  return startY + 8;
+  return startY + 8.5;
 }
 
 function drawLineItems(pdf: jsPDF, lines: DeliveryNoteLine[], startY: number) {
@@ -328,6 +383,7 @@ function drawLineItems(pdf: jsPDF, lines: DeliveryNoteLine[], startY: number) {
   lines.forEach((line) => {
     const name = fitText(pdf, safeText(line.name), PRODUCT_MAX_WIDTH);
 
+    pdf.setTextColor(0, 0, 0);
     pdf.text(name, LEFT, y);
     pdf.text(String(line.quantity), QTY_X, y, { align: 'right' });
     pdf.text(formatMoney(line.price), PRICE_X, y, { align: 'right' });
@@ -346,6 +402,7 @@ function drawTotals(pdf: jsPDF, note: DeliveryNote, startY: number) {
   pdf.line(120, y, RIGHT, y);
 
   y += 7;
+  pdf.setTextColor(0, 0, 0);
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(10);
   pdf.text('Subtotal', PRICE_X, y, { align: 'right' });
@@ -366,6 +423,7 @@ function drawNotesOnCurrentPage(
 ) {
   let y = startY + 10;
 
+  pdf.setTextColor(0, 0, 0);
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(10);
   pdf.text('Observaciones', LEFT, y);
@@ -389,6 +447,7 @@ function drawNotesPage(
 
   let y = headerBottomY + 12;
 
+  pdf.setTextColor(0, 0, 0);
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(10.5);
   pdf.text('Observaciones', LEFT, y);
