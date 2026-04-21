@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, useDeviceLanguage } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -17,3 +17,5 @@ export const auth = getAuth(app);
 useDeviceLanguage(auth);
 
 export const db = getFirestore(app);
+
+export default app;
