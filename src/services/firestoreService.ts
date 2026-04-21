@@ -109,7 +109,17 @@ function normalizeLines(lines: DeliveryNoteLine[] | undefined): DeliveryNoteLine
 }
 
 function statusConsumesStock(note: Pick<DeliveryNote, 'status'> | null | undefined) {
-  return !!note && note.status !== 'canceled';
+  return !!note;
+}
+
+function inventoryWasApplied(note: StoredDeliveryNote | null | undefined) {
+  if (!statusConsumesStock(note)) {
+    return false;
+  }
+
+  // Compatibilidad con notas antiguas guardadas antes de existir inventoryApplied.
+  // Si el campo no existe, asumimos que la nota ya había impactado inventario.
+  return note?.inventoryApplied !== false;
 }
 
 function aggregateLineQuantities(lines: DeliveryNoteLine[] | undefined) {
@@ -129,7 +139,7 @@ function aggregateLineQuantities(lines: DeliveryNoteLine[] | undefined) {
 }
 
 function getEffectiveInventoryImpact(note: StoredDeliveryNote | null | undefined) {
-  if (!statusConsumesStock(note) || note.inventoryApplied !== true) {
+  if (!inventoryWasApplied(note)) {
     return new Map<string, { quantity: number; name: string }>();
   }
 
