@@ -56,29 +56,37 @@ import {
 
 // --- Components ---
 
-const Badge = ({ status }: { status: DeliveryStatus }) => {
-  const styles = {
-    delivered: 'bg-navy text-white border-navy',
-    draft: 'bg-blue-gray/20 text-navy border-blue-gray/30',
-    canceled: 'bg-steel/10 text-steel border-steel/20',
+const normalizeDeliveryStatus = (status?: string): DeliveryStatus => {
+  if (status === 'delivered' || status === 'issued') return 'delivered';
+  if (status === 'canceled' || status === 'cancelled') return 'canceled';
+  return 'draft';
+};
+
+const Badge = ({ status }: { status: DeliveryStatus | string }) => {
+  const normalizedStatus = normalizeDeliveryStatus(status);
+
+  const styles: Record<DeliveryStatus, string> = {
+    delivered: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    draft: 'bg-amber-100 text-amber-800 border-amber-200',
+    canceled: 'bg-sky-100 text-sky-800 border-sky-200',
   };
   
-  const labels = {
+  const labels: Record<DeliveryStatus, string> = {
     delivered: 'Entregado',
     draft: 'Borrador',
     canceled: 'Cancelado',
   };
 
-  const icons = {
+  const icons: Record<DeliveryStatus, React.ReactNode> = {
     delivered: <CheckCircle2 size={14} className="mr-1.5" />,
     draft: <Clock size={14} className="mr-1.5" />,
     canceled: <AlertCircle size={14} className="mr-1.5" />,
   };
 
   return (
-    <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold border tracking-widest uppercase ${styles[status]}`}>
-      {icons[status]}
-      {labels[status]}
+    <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold border tracking-widest uppercase ${styles[normalizedStatus]}`}>
+      {icons[normalizedStatus]}
+      {labels[normalizedStatus]}
     </span>
   );
 };
@@ -460,11 +468,12 @@ const shareOnWhatsApp = async (
   note: DeliveryNote,
   company: CompanyProfile,
   setIsSharing: (v: boolean) => void,
-  openFallback?: () => void
+  openFallback?: () => void,
+  customer?: Customer | null
 ) => {
   setIsSharing(true);
   try {
-    const blob = getProfessionalPDFBlob(note, company);
+    const blob = getProfessionalPDFBlob(note, company, customer);
     const fileName = `${note.noteNumber}_${note.customerName.replace(/\s+/g, '_')}.pdf`;
     const file = new File([blob], fileName, { type: 'application/pdf' });
 
@@ -477,7 +486,7 @@ const shareOnWhatsApp = async (
     } else {
       const text = encodeURIComponent(`Hola, adjunto la nota de entrega ${note.noteNumber} de ${company.name}. Por favor, descarga el PDF adjunto.`);
       window.open(`https://wa.me/${note.customerPhone.replace(/\D/g, '')}?text=${text}`, '_blank');
-      saveProfessionalPDF(note, company);
+      saveProfessionalPDF(note, company, customer);
       openFallback?.();
     }
   } catch (error) {
@@ -2035,6 +2044,8 @@ function App() {
         customerName: customer?.name || '',
         customerPhone: customer?.phone || '',
         customerAddress: customer?.address || '',
+        customerEmail: customer?.email || '',
+        customerTaxId: customer?.taxId || '',
         ...totals,
         id: editingNote?.id || Math.random().toString(36).substr(2, 9),
         createdAt: editingNote?.createdAt || now,
@@ -2046,7 +2057,8 @@ function App() {
         navigate('delivery-notes');
       } catch (error) {
         console.error('Error saving delivery note:', error);
-        alert('Error al guardar la nota de entrega.');
+        const message = error instanceof Error ? error.message : 'Error al guardar la nota de entrega.';
+        alert(message);
       }
     };
 
@@ -2243,7 +2255,7 @@ function App() {
           </button>
           <div className="flex items-center space-x-3">
             <button 
-              onClick={() => shareOnWhatsApp(viewingNote, user?.company || { name: 'RASR', phone: '', email: '', address: '' }, setIsSharing, () => setIsShareFallbackOpen(true))} 
+              onClick={() => shareOnWhatsApp(viewingNote, user?.company || { name: 'RASR', phone: '', email: '', address: '', taxId: '' }, setIsSharing, () => setIsShareFallbackOpen(true), customer)} 
               disabled={isSharing}
               className="premium-button-secondary flex items-center space-x-2 py-2.5 px-4 border-accent/30 text-accent hover:bg-accent/5 disabled:opacity-50"
             >
@@ -2251,7 +2263,7 @@ function App() {
               <span className="text-xs font-bold uppercase tracking-widest">{isSharing ? 'Generando...' : 'Compartir por WhatsApp'}</span>
             </button>
             <button 
-              onClick={() => user?.company && saveProfessionalPDF(viewingNote, user.company)} 
+              onClick={() => user?.company && saveProfessionalPDF(viewingNote, user.company, customer)} 
               className="premium-button-secondary flex items-center space-x-2 py-2.5 px-4"
             >
               <Printer size={18} />
