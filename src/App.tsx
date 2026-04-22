@@ -1379,98 +1379,116 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
           </button>
         </div>
 
+        {/* Mobile cards */}
         <div className="md:hidden space-y-3">
-  {filtered.length > 0 ? (
-    filtered.map((customer) => (
-      <div key={customer.id} className="premium-card p-4 space-y-4">
-        <div>
-          <p className="text-[10px] font-bold text-muted uppercase tracking-widest">Cliente</p>
-          <h3 className="mt-1 font-bold text-primary leading-snug">{customer.name}</h3>
+          {filtered.length > 0 ? (
+            filtered.map((customer) => (
+              <div key={customer.id} className="premium-card p-4 space-y-4">
+                <div>
+                  <p className="text-[10px] font-bold text-muted uppercase tracking-widest">Cliente</p>
+                  <h3 className="mt-1 font-bold text-primary leading-snug">{customer.name}</h3>
+                </div>
+                <div className="grid grid-cols-1 gap-2 text-xs text-muted">
+                  {customer.email && <p className="truncate">{customer.email}</p>}
+                  {customer.phone && <p>{customer.phone}</p>}
+                  {customer.address && <p className="break-words">{customer.address}</p>}
+                </div>
+                <div className="flex gap-2 border-t border-border pt-3">
+                  <button 
+                    onClick={() => { setEditingCustomer(customer); navigate('customer-form'); }}
+                    className="premium-button-secondary flex-1 px-3 py-2 text-[10px] uppercase tracking-widest"
+                  >
+                    Editar
+                  </button>
+                  <button 
+                    onClick={async () => {
+                      if (user && window.confirm('¿Estás seguro de eliminar este cliente permanentemente?')) {
+                        try {
+                          await firestoreService.deleteCustomer(user.uid, customer.id);
+                        } catch (error) {
+                          console.error('Error deleting customer:', error);
+                          alert('Error al eliminar el cliente.');
+                        }
+                      }
+                    }}
+                    className="flex-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-rose-600 transition-colors hover:bg-rose-100"
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="premium-card p-8 text-center text-sm italic text-muted">
+              No se encontraron clientes que coincidan con la búsqueda.
+            </div>
+          )}
         </div>
-        <div className="grid grid-cols-1 gap-2 text-xs text-muted">
-          {customer.email && <p className="truncate">{customer.email}</p>}
-          {customer.phone && <p>{customer.phone}</p>}
-          {customer.address && <p className="break-words">{customer.address}</p>}
-        </div>
-        <div className="flex gap-2 border-t border-border pt-3">
-          <button 
-            onClick={() => { setEditingCustomer(customer); navigate('customer-form'); }}
-            className="premium-button-secondary flex-1 px-3 py-2 text-[10px] uppercase tracking-widest"
-          >
-            Editar
-          </button>
-          <button 
-            onClick={async () => {
-              if (user && window.confirm('¿Estás seguro de eliminar este cliente permanentemente?')) {
-                try {
-                  await firestoreService.deleteCustomer(user.uid, customer.id);
-                } catch (error) {
-                  console.error('Error deleting customer:', error);
-                  alert('Error al eliminar el cliente.');
-                }
-              }
-            }}
-            className="flex-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-rose-600 transition-colors hover:bg-rose-100"
-          >
-            Eliminar
-          </button>
+
+        {/* Desktop table */}
+        <div className="premium-card overflow-hidden hidden md:block">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-background border-b border-border">
+                  <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest">Nombre</th>
+                  <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest">Correo</th>
+                  <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest">Teléfono</th>
+                  <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest hidden lg:table-cell">Dirección</th>
+                  <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filtered.length > 0 ? (
+                  filtered.map((customer) => (
+                    <tr key={customer.id} className="hover:bg-background transition-colors group">
+                      <td className="px-6 py-5 font-bold text-primary">{customer.name}</td>
+                      <td className="px-6 py-5 text-muted text-sm">{customer.email || '—'}</td>
+                      <td className="px-6 py-5 text-muted text-sm">{customer.phone || '—'}</td>
+                      <td className="px-6 py-5 text-muted text-sm hidden lg:table-cell">{customer.address || '—'}</td>
+                      <td className="px-6 py-5 text-right">
+                        <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            onClick={() => { setEditingCustomer(customer); navigate('customer-form'); }}
+                            className="p-2.5 text-muted hover:text-accent hover:bg-accent/10 rounded-lg transition-all"
+                            title="Editar"
+                          >
+                            <Edit2 size={18} />
+                          </button>
+                          <button 
+                            onClick={async () => {
+                              if (user && window.confirm('¿Estás seguro de eliminar este cliente permanentemente?')) {
+                                try {
+                                  await firestoreService.deleteCustomer(user.uid, customer.id);
+                                } catch (error) {
+                                  console.error('Error deleting customer:', error);
+                                  alert('Error al eliminar el cliente.');
+                                }
+                              }
+                            }}
+                            className="p-2.5 text-muted hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                            title="Eliminar"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-20 text-center text-muted font-medium italic">
+                      No se encontraron clientes que coincidan con la búsqueda.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
-    ))
-  ) : (
-    <div className="premium-card p-8 text-center text-sm italic text-muted">
-      No se encontraron clientes que coincidan con la búsqueda.
-    </div>
-  )}
-</div>
-        <div className="md:hidden space-y-3">
-  {filtered.length > 0 ? (
-    filtered.map((note) => (
-      <div 
-        key={note.id}
-        onClick={() => { setViewingNote(note); navigate('delivery-note-detail'); }}
-        className="premium-card p-4 space-y-4 cursor-pointer active:scale-[0.99] transition-transform"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold text-muted uppercase tracking-widest">Nota</p>
-            <h3 className="mt-1 font-bold text-primary">{note.noteNumber}</h3>
-            <p className="mt-1 truncate text-xs text-muted">{note.customerName}</p>
-          </div>
-          <Badge status={note.status} />
-        </div>
-        <div className="flex items-center justify-between rounded-lg bg-background p-3">
-          <div>
-            <p className="text-[9px] font-bold uppercase tracking-widest text-muted">Fecha</p>
-            <p className="mt-1 text-xs font-bold text-primary">{note.issueDate}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-[9px] font-bold uppercase tracking-widest text-muted">Total</p>
-            <p className="mt-1 text-sm font-bold text-primary">${note.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-          </div>
-        </div>
-        <div className="flex gap-2 border-t border-border pt-3" onClick={(e) => e.stopPropagation()}>
-          <button 
-            onClick={() => { setEditingNote(note); navigate('delivery-note-form'); }}
-            className="premium-button-secondary flex-1 px-3 py-2 text-[10px] uppercase tracking-widest"
-          >
-            Editar
-          </button>
-          <button 
-            onClick={() => handleDeleteClick(note.id)}
-            className="flex-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-rose-600 transition-colors hover:bg-rose-100"
-          >
-            Eliminar
-          </button>
-        </div>
-      </div>
-    ))
-  ) : (
-    <div className="premium-card p-8 text-center text-sm italic text-muted">
-      No se encontraron notas de entrega.
-    </div>
-  )}
-</div>
+    );
+  };
 
   const CustomerFormScreen = () => {
     const [formData, setFormData] = useState<Partial<Customer>>(editingCustomer || {
@@ -1643,6 +1661,89 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
               <span className="uppercase tracking-widest font-bold">Nuevo Producto</span>
             </button>
           </div>
+        </div>
+
+        {/* Mobile cards */}
+        <div className="md:hidden space-y-3">
+          {paginated.length > 0 ? (
+            paginated.map((item) => (
+              <div key={item.id} className="premium-card p-4 space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-mono text-[10px] text-muted">{item.sku}</p>
+                    <h3 className="mt-1 font-bold text-primary leading-snug">{item.name}</h3>
+                    {!item.activo && <span className="text-[9px] font-bold text-rose-600 uppercase tracking-tighter">Inactivo</span>}
+                  </div>
+                  <span className="shrink-0 rounded-full bg-accent/5 px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest text-accent">
+                    {item.categoria}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-3 rounded-lg bg-background p-3">
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-muted">Precio</p>
+                    <p className="mt-1 text-sm font-bold text-primary">${item.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-muted">Stock</p>
+                    <p className={`mt-1 text-sm font-bold ${item.stock < 10 ? 'text-rose-600' : 'text-primary'}`}>{item.stock} {item.unit}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2 border-t border-border pt-3">
+                  <button 
+                    onClick={() => { setEditingItem(item); navigate('item-form'); }}
+                    className="premium-button-secondary flex-1 px-3 py-2 text-[10px] uppercase tracking-widest"
+                  >
+                    Editar
+                  </button>
+                  <button 
+                    onClick={async () => {
+                      if (user && window.confirm('¿Estás seguro de eliminar este producto permanentemente?')) {
+                        try {
+                          await firestoreService.deleteItem(user.uid, item.id);
+                        } catch (error) {
+                          console.error('Error deleting item:', error);
+                          alert('Error al eliminar el producto.');
+                        }
+                      }
+                    }}
+                    className="flex-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-rose-600 transition-colors hover:bg-rose-100"
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="premium-card p-8 text-center text-sm italic text-muted">
+              No se encontraron productos en el inventario.
+            </div>
+          )}
+          {totalPages > 1 && (
+            <div className="premium-card px-4 py-3 flex items-center justify-between">
+              <p className="text-[10px] text-muted font-medium">
+                {Math.min(currentPage * itemsPerPage, filtered.length)} de {filtered.length}
+              </p>
+              <div className="flex items-center space-x-2">
+                <button 
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(p => p - 1)}
+                  className="p-2 text-muted hover:text-primary disabled:opacity-30 transition-colors"
+                >
+                  <ArrowLeft size={18} />
+                </button>
+                <span className="text-xs font-bold text-primary px-3 py-1 bg-surface border border-border rounded">
+                  {currentPage} / {totalPages}
+                </span>
+                <button 
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(p => p + 1)}
+                  className="p-2 text-muted hover:text-primary disabled:opacity-30 transition-colors"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="premium-card overflow-hidden hidden md:block">
@@ -1954,7 +2055,7 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
     return (
       <div className="p-4 sm:p-6 lg:p-10 space-y-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-          <div className="relative w-full flex-1 sm:max-w-md"
+          <div className="relative w-full flex-1 sm:max-w-md">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
             <input 
               type="text" 
@@ -1970,88 +2071,114 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
           </button>
         </div>
 
+        {/* Mobile cards */}
         <div className="md:hidden space-y-3">
-  {paginated.length > 0 ? (
-    paginated.map((item) => (
-      <div key={item.id} className="premium-card p-4 space-y-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="font-mono text-[10px] text-muted">{item.sku}</p>
-            <h3 className="mt-1 font-bold text-primary leading-snug">{item.name}</h3>
-            {!item.activo && <span className="text-[9px] font-bold text-rose-600 uppercase tracking-tighter">Inactivo</span>}
-          </div>
-          <span className="shrink-0 rounded-full bg-accent/5 px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest text-accent">
-            {item.categoria}
-          </span>
+          {filtered.length > 0 ? (
+            filtered.map((note) => (
+              <div 
+                key={note.id}
+                onClick={() => { setViewingNote(note); navigate('delivery-note-detail'); }}
+                className="premium-card p-4 space-y-4 cursor-pointer active:scale-[0.99] transition-transform"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold text-muted uppercase tracking-widest">Nota</p>
+                    <h3 className="mt-1 font-bold text-primary">{note.noteNumber}</h3>
+                    <p className="mt-1 truncate text-xs text-muted">{note.customerName}</p>
+                  </div>
+                  <Badge status={note.status} />
+                </div>
+                <div className="flex items-center justify-between rounded-lg bg-background p-3">
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-muted">Fecha</p>
+                    <p className="mt-1 text-xs font-bold text-primary">{note.issueDate}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-muted">Total</p>
+                    <p className="mt-1 text-sm font-bold text-primary">${note.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2 border-t border-border pt-3" onClick={(e) => e.stopPropagation()}>
+                  <button 
+                    onClick={() => { setEditingNote(note); navigate('delivery-note-form'); }}
+                    className="premium-button-secondary flex-1 px-3 py-2 text-[10px] uppercase tracking-widest"
+                  >
+                    Editar
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteClick(note.id)}
+                    className="flex-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-rose-600 transition-colors hover:bg-rose-100"
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="premium-card p-8 text-center text-sm italic text-muted">
+              No se encontraron notas de entrega.
+            </div>
+          )}
         </div>
-        <div className="grid grid-cols-2 gap-3 rounded-lg bg-background p-3">
-          <div>
-            <p className="text-[9px] font-bold uppercase tracking-widest text-muted">Precio</p>
-            <p className="mt-1 text-sm font-bold text-primary">${item.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-[9px] font-bold uppercase tracking-widest text-muted">Stock</p>
-            <p className={`mt-1 text-sm font-bold ${item.stock < 10 ? 'text-rose-600' : 'text-primary'}`}>{item.stock} {item.unit}</p>
-          </div>
-        </div>
-        <div className="flex gap-2 border-t border-border pt-3">
-          <button 
-            onClick={() => { setEditingItem(item); navigate('item-form'); }}
-            className="premium-button-secondary flex-1 px-3 py-2 text-[10px] uppercase tracking-widest"
-          >
-            Editar
-          </button>
-          <button 
-            onClick={async () => {
-              if (user && window.confirm('¿Estás seguro de eliminar este producto permanentemente?')) {
-                try {
-                  await firestoreService.deleteItem(user.uid, item.id);
-                } catch (error) {
-                  console.error('Error deleting item:', error);
-                  alert('Error al eliminar el producto.');
-                }
-              }
-            }}
-            className="flex-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-rose-600 transition-colors hover:bg-rose-100"
-          >
-            Eliminar
-          </button>
-        </div>
-      </div>
-    ))
-  ) : (
-    <div className="premium-card p-8 text-center text-sm italic text-muted">
-      No se encontraron productos en el inventario.
-    </div>
-  )}
 
-  {totalPages > 1 && (
-    <div className="premium-card px-4 py-3 flex items-center justify-between">
-      <p className="text-[10px] text-muted font-medium">
-        {Math.min(currentPage * itemsPerPage, filtered.length)} de {filtered.length}
-      </p>
-      <div className="flex items-center space-x-2">
-        <button 
-          disabled={currentPage === 1}
-          onClick={() => setCurrentPage(p => p - 1)}
-          className="p-2 text-muted hover:text-primary disabled:opacity-30 transition-colors"
-        >
-          <ArrowLeft size={18} />
-        </button>
-        <span className="text-xs font-bold text-primary px-3 py-1 bg-surface border border-border rounded">
-          {currentPage} / {totalPages}
-        </span>
-        <button 
-          disabled={currentPage === totalPages}
-          onClick={() => setCurrentPage(p => p + 1)}
-          className="p-2 text-muted hover:text-primary disabled:opacity-30 transition-colors"
-        >
-          <ChevronRight size={18} />
-        </button>
-      </div>
-    </div>
-  )}
-</div>
+        {/* Desktop table */}
+        <div className="premium-card overflow-hidden hidden md:block">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-background border-b border-border">
+                  <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest">N° Nota</th>
+                  <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest">Cliente</th>
+                  <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest hidden lg:table-cell">Fecha</th>
+                  <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest text-right">Total</th>
+                  <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest text-center">Estado</th>
+                  <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filtered.length > 0 ? (
+                  filtered.map((note) => (
+                    <tr 
+                      key={note.id} 
+                      className="hover:bg-background transition-colors group cursor-pointer"
+                      onClick={() => { setViewingNote(note); navigate('delivery-note-detail'); }}
+                    >
+                      <td className="px-6 py-5 font-bold text-primary">{note.noteNumber}</td>
+                      <td className="px-6 py-5 text-muted text-sm">{note.customerName}</td>
+                      <td className="px-6 py-5 text-muted text-sm hidden lg:table-cell">{note.issueDate}</td>
+                      <td className="px-6 py-5 text-right font-bold text-primary">${note.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td className="px-6 py-5 text-center"><Badge status={note.status} /></td>
+                      <td className="px-6 py-5 text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            onClick={() => { setEditingNote(note); navigate('delivery-note-form'); }}
+                            className="p-2.5 text-muted hover:text-accent hover:bg-accent/10 rounded-lg transition-all"
+                            title="Editar"
+                          >
+                            <Edit2 size={18} />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteClick(note.id)}
+                            className="p-2.5 text-muted hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                            title="Eliminar"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-20 text-center text-muted font-medium italic">
+                      No se encontraron notas de entrega.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
         <Modal 
           isOpen={isDeleteModalOpen} 
@@ -2105,37 +2232,37 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
     }, [formData.lines]);
 
     const selectedCustomer = useMemo(
-  () => customers.find(c => c.id === formData.customerId) || null,
-  [customers, formData.customerId]
-);
+      () => customers.find(c => c.id === formData.customerId) || null,
+      [formData.customerId]
+    );
 
-const previewNote = useMemo<DeliveryNote>(() => {
-  const now = new Date().toISOString();
-  const fallbackNoteNumber = generateNoteNumber(settings.numberingFormat, deliveryNotes.length);
+    const previewNote = useMemo<DeliveryNote>(() => {
+      const now = new Date().toISOString();
+      const fallbackNoteNumber = generateNoteNumber(settings.numberingFormat, deliveryNotes.length);
+      return {
+        id: editingNote?.id || 'preview',
+        noteNumber: formData.noteNumber || fallbackNoteNumber,
+        issueDate: formData.issueDate || now.split('T')[0],
+        status: normalizeDeliveryStatus(formData.status),
+        customerId: formData.customerId || '',
+        customerName: selectedCustomer?.name || formData.customerName || 'Cliente no seleccionado',
+        customerPhone: selectedCustomer?.phone || formData.customerPhone || '',
+        customerAddress: selectedCustomer?.address || formData.customerAddress || '',
+        customerEmail: selectedCustomer?.email || formData.customerEmail || '',
+        customerTaxId: selectedCustomer?.taxId || formData.customerTaxId || '',
+        lines: formData.lines || [],
+        subtotal: totals.subtotal,
+        total: totals.total,
+        notes: formData.notes || '',
+        signerName: formData.signerName || '',
+        signatureSvg: formData.signatureSvg,
+        inventoryApplied: editingNote?.inventoryApplied,
+        createdAt: editingNote?.createdAt || now,
+        updatedAt: now
+      };
+    }, [deliveryNotes.length, editingNote, formData, selectedCustomer, settings.numberingFormat, totals]);
 
-  return {
-    id: editingNote?.id || 'preview',
-    noteNumber: formData.noteNumber || fallbackNoteNumber,
-    issueDate: formData.issueDate || now.split('T')[0],
-    status: normalizeDeliveryStatus(formData.status),
-    customerId: formData.customerId || '',
-    customerName: selectedCustomer?.name || formData.customerName || 'Cliente no seleccionado',
-    customerPhone: selectedCustomer?.phone || formData.customerPhone || '',
-    customerAddress: selectedCustomer?.address || formData.customerAddress || '',
-    customerEmail: selectedCustomer?.email || formData.customerEmail || '',
-    customerTaxId: selectedCustomer?.taxId || formData.customerTaxId || '',
-    lines: formData.lines || [],
-    subtotal: totals.subtotal,
-    total: totals.total,
-    notes: formData.notes || '',
-    signerName: formData.signerName || '',
-    signatureSvg: formData.signatureSvg,
-    inventoryApplied: editingNote?.inventoryApplied,
-    createdAt: editingNote?.createdAt || now,
-    updatedAt: now
-  };
-}, [deliveryNotes.length, editingNote, formData, selectedCustomer, settings.numberingFormat, totals]);
-      const addItem = () => {
+    const addItem = () => {
       const item = items.find(i => i.id === selectedItemId);
       if (!item) return;
 
@@ -2319,8 +2446,9 @@ const previewNote = useMemo<DeliveryNote>(() => {
                 </div>
               </div>
 
+              <PDFPreviewFrame note={previewNote} company={user?.company} customer={selectedCustomer} />
+
               <div className="premium-card p-8 space-y-6">
-                <PDFPreviewFrame note={previewNote} company={user?.company} customer={selectedCustomer} />
                 <h3 className="text-xs font-bold text-primary uppercase tracking-widest border-b border-border pb-4">Estado y Notas</h3>
                 <div>
                   <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Estado</label>
