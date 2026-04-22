@@ -164,6 +164,42 @@ const PDFPreviewFrame = ({
   );
 };
 
+const Modal = ({
+  isOpen,
+  onClose,
+  title,
+  children,
+  maxWidth = 'max-w-lg',
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+  maxWidth?: string;
+}) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-primary/40 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <div className={`relative w-full ${maxWidth} bg-surface rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto`}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold text-primary uppercase tracking-widest">{title}</h2>
+          <button
+            onClick={onClose}
+            className="p-2 text-muted hover:text-primary hover:bg-background rounded-lg transition-all"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+};
+
 interface ImportRow {
   sku: string;
   nombre: string;
