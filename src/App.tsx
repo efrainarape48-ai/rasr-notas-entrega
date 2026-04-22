@@ -90,23 +90,76 @@ const Badge = ({ status }: { status: DeliveryStatus | string }) => {
   );
 };
 
-const Modal = ({ isOpen, onClose, title, children, maxWidth = "max-w-md" }: { isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; maxWidth?: string }) => {
-  if (!isOpen) return null;
+const PDFPreviewFrame = ({
+  note,
+  company,
+  customer,
+}: {
+  note: DeliveryNote;
+  company?: CompanyProfile;
+  customer?: Customer | null;
+}) => {
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState(false);
+
+  useEffect(() => {
+    if (!company) {
+      setPdfUrl(null);
+      setPreviewError(false);
+      return;
+    }
+
+    let url: string | null = null;
+
+    try {
+      const blob = getProfessionalPDFBlob(note, company, customer);
+      url = URL.createObjectURL(blob);
+      setPdfUrl(url);
+      setPreviewError(false);
+    } catch (error) {
+      console.error('Error generando la vista previa PDF:', error);
+      setPdfUrl(null);
+      setPreviewError(true);
+    }
+
+    return () => {
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [note, company, customer]);
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-primary/40 backdrop-blur-sm">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className={`premium-card w-full ${maxWidth} p-6 space-y-4 max-h-[90vh] overflow-y-auto`}
-      >
-        <div className="flex items-center justify-between border-b border-border pb-4">
-          <h3 className="text-lg font-bold text-primary">{title}</h3>
-          <button onClick={onClose} className="text-muted hover:text-primary transition-colors">
-            <X size={20} />
-          </button>
-        </div>
-        <div className="py-2">{children}</div>
-      </motion.div>
+    <div className="premium-card overflow-hidden hidden md:block">
+      <div className="px-4 py-4 sm:px-5 border-b border-border bg-white">
+        <p className="text-[10px] font-bold text-muted uppercase tracking-[0.24em]">Vista previa PDF</p>
+        <h3 className="text-sm font-bold text-primary mt-1">Así quedará al imprimir / PDF</h3>
+      </div>
+      <div className="bg-background p-3 sm:p-4">
+        {previewError ? (
+          <div className="min-h-[280px] flex items-center justify-center rounded-lg border border-border bg-white p-6 text-center text-sm text-muted">
+            No se pudo generar la vista previa del PDF.
+          </div>
+        ) : pdfUrl ? (
+          <>
+            <iframe
+              title="Vista previa del PDF de la nota de entrega"
+              src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+              className="h-[430px] w-full rounded-lg border border-border bg-white sm:h-[560px] lg:h-[640px]"
+            />
+            <a
+              href={pdfUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 block text-center text-[10px] font-bold uppercase tracking-widest text-accent hover:underline"
+            >
+              Abrir vista previa en otra pestaña
+            </a>
+          </>
+        ) : (
+          <div className="min-h-[280px] flex items-center justify-center rounded-lg border border-border bg-white p-6 text-center text-sm text-muted">
+            Completa los datos para generar la vista previa.
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -700,44 +753,44 @@ function App() {
     </div>
   );
 
-  const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboard') => (
-    <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-border lg:ml-64 no-print">
-      <div className="flex items-center justify-between px-6 h-20 lg:px-10">
-        <div className="flex items-center">
-          <button 
-            onClick={() => setIsSidebarOpen(true)}
-            className="p-2 -ml-2 text-carbon lg:hidden"
-          >
-            <Menu size={24} />
-          </button>
-          
-          {showBack && (
-            <button 
-              onClick={() => navigate(backTo)}
-              className="p-2 -ml-2 mr-3 text-carbon hover:bg-background rounded-full transition-colors"
-            >
-              <ArrowLeft size={22} />
-            </button>
-          )}
-
-          <h1 className="text-xl font-extrabold text-carbon ml-2 lg:ml-0 uppercase tracking-tight">{title}</h1>
-        </div>
+const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboard') => (
+  <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-border lg:ml-64 no-print">
+    <div className="flex items-center justify-between px-4 h-16 sm:px-6 sm:h-20 lg:px-10">
+      <div className="flex items-center min-w-0">
+        <button 
+          onClick={() => setIsSidebarOpen(true)}
+          className="p-2 -ml-2 text-carbon lg:hidden"
+        >
+          <Menu size={24} />
+        </button>
         
-        <div className="flex items-center space-x-4">
-          <div className="hidden sm:flex flex-col items-end">
-            <span className="text-[10px] font-extrabold text-primary uppercase tracking-widest">{user?.company?.name}</span>
-          </div>
-          {user?.company?.logoData ? (
-            <img src={user.company.logoData} alt="Logo" className="w-10 h-10 rounded-lg object-contain border border-border p-1 bg-white" referrerPolicy="no-referrer" />
-          ) : (
-            <div className="w-10 h-10 rounded-xl bg-background flex items-center justify-center text-primary font-bold text-sm border border-border">
-              {user?.company?.name?.[0] || 'R'}
-            </div>
-          )}
-        </div>
+        {showBack && (
+          <button 
+            onClick={() => navigate(backTo)}
+            className="p-2 -ml-2 mr-1 sm:mr-3 text-carbon hover:bg-background rounded-full transition-colors shrink-0"
+          >
+            <ArrowLeft size={22} />
+          </button>
+        )}
+
+        <h1 className="text-base sm:text-xl font-extrabold text-carbon ml-1 sm:ml-2 lg:ml-0 uppercase tracking-tight truncate max-w-[48vw] sm:max-w-none">{title}</h1>
       </div>
-    </header>
-  );
+      
+      <div className="flex items-center space-x-2 sm:space-x-4 shrink-0">
+        <div className="hidden sm:flex flex-col items-end">
+          <span className="text-[10px] font-extrabold text-primary uppercase tracking-widest">{user?.company?.name}</span>
+        </div>
+        {user?.company?.logoData ? (
+          <img src={user.company.logoData} alt="Logo" className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg object-contain border border-border p-1 bg-white" referrerPolicy="no-referrer" />
+        ) : (
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-background flex items-center justify-center text-primary font-bold text-sm border border-border">
+            {user?.company?.name?.[0] || 'R'}
+          </div>
+        )}
+      </div>
+    </div>
+  </header>
+);
 
   const LoginScreen = () => {
     const [email, setEmail] = useState('');
@@ -1304,11 +1357,11 @@ function App() {
     const [searchTerm, setSearchTerm] = useState('');
     const filtered = customers.filter(c => 
       c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.email.toLowerCase().includes(searchTerm.toLowerCase())
+      (c.email || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     return (
-      <div className="p-6 lg:p-10 space-y-8">
+      <div className="p-4 sm:p-6 lg:p-10 space-y-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
@@ -1326,75 +1379,98 @@ function App() {
           </button>
         </div>
 
-        <div className="premium-card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-background border-b border-border">
-                  <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest">Nombre / Empresa</th>
-                  <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest hidden md:table-cell">Contacto</th>
-                  <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest hidden lg:table-cell">Dirección</th>
-                  <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {filtered.length > 0 ? (
-                  filtered.map((customer) => (
-                    <tr key={customer.id} className="hover:bg-background transition-colors group">
-                      <td className="px-6 py-5">
-                        <div className="font-bold text-primary">{customer.name}</div>
-                        <div className="text-xs text-muted md:hidden mt-1">{customer.email}</div>
-                      </td>
-                      <td className="px-6 py-5 hidden md:table-cell">
-                        <div className="text-sm text-primary font-medium">{customer.email}</div>
-                        <div className="text-xs text-muted mt-1">{customer.phone}</div>
-                      </td>
-                      <td className="px-6 py-5 hidden lg:table-cell max-w-xs truncate">
-                        <div className="text-sm text-muted">{customer.address}</div>
-                      </td>
-                      <td className="px-6 py-5 text-right">
-                        <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button 
-                            onClick={() => { setEditingCustomer(customer); navigate('customer-form'); }}
-                            className="p-2.5 text-muted hover:text-accent hover:bg-accent/10 rounded-lg transition-all"
-                            title="Editar"
-                          >
-                            <Edit2 size={18} />
-                          </button>
-                          <button 
-                            onClick={async () => {
-                              if (user && window.confirm('¿Estás seguro de eliminar este cliente permanentemente?')) {
-                                try {
-                                  await firestoreService.deleteCustomer(user.uid, customer.id);
-                                } catch (error) {
-                                  console.error('Error deleting customer:', error);
-                                  alert('Error al eliminar el cliente.');
-                                }
-                              }
-                            }}
-                            className="p-2.5 text-muted hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
-                            title="Eliminar"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-20 text-center text-muted font-medium italic">
-                      No se encontraron clientes que coincidan con la búsqueda.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+        <div className="md:hidden space-y-3">
+  {filtered.length > 0 ? (
+    filtered.map((customer) => (
+      <div key={customer.id} className="premium-card p-4 space-y-4">
+        <div>
+          <p className="text-[10px] font-bold text-muted uppercase tracking-widest">Cliente</p>
+          <h3 className="mt-1 font-bold text-primary leading-snug">{customer.name}</h3>
+        </div>
+        <div className="grid grid-cols-1 gap-2 text-xs text-muted">
+          {customer.email && <p className="truncate">{customer.email}</p>}
+          {customer.phone && <p>{customer.phone}</p>}
+          {customer.address && <p className="break-words">{customer.address}</p>}
+        </div>
+        <div className="flex gap-2 border-t border-border pt-3">
+          <button 
+            onClick={() => { setEditingCustomer(customer); navigate('customer-form'); }}
+            className="premium-button-secondary flex-1 px-3 py-2 text-[10px] uppercase tracking-widest"
+          >
+            Editar
+          </button>
+          <button 
+            onClick={async () => {
+              if (user && window.confirm('¿Estás seguro de eliminar este cliente permanentemente?')) {
+                try {
+                  await firestoreService.deleteCustomer(user.uid, customer.id);
+                } catch (error) {
+                  console.error('Error deleting customer:', error);
+                  alert('Error al eliminar el cliente.');
+                }
+              }
+            }}
+            className="flex-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-rose-600 transition-colors hover:bg-rose-100"
+          >
+            Eliminar
+          </button>
         </div>
       </div>
-    );
-  };
+    ))
+  ) : (
+    <div className="premium-card p-8 text-center text-sm italic text-muted">
+      No se encontraron clientes que coincidan con la búsqueda.
+    </div>
+  )}
+</div>
+        <div className="md:hidden space-y-3">
+  {filtered.length > 0 ? (
+    filtered.map((note) => (
+      <div 
+        key={note.id}
+        onClick={() => { setViewingNote(note); navigate('delivery-note-detail'); }}
+        className="premium-card p-4 space-y-4 cursor-pointer active:scale-[0.99] transition-transform"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold text-muted uppercase tracking-widest">Nota</p>
+            <h3 className="mt-1 font-bold text-primary">{note.noteNumber}</h3>
+            <p className="mt-1 truncate text-xs text-muted">{note.customerName}</p>
+          </div>
+          <Badge status={note.status} />
+        </div>
+        <div className="flex items-center justify-between rounded-lg bg-background p-3">
+          <div>
+            <p className="text-[9px] font-bold uppercase tracking-widest text-muted">Fecha</p>
+            <p className="mt-1 text-xs font-bold text-primary">{note.issueDate}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-muted">Total</p>
+            <p className="mt-1 text-sm font-bold text-primary">${note.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+          </div>
+        </div>
+        <div className="flex gap-2 border-t border-border pt-3" onClick={(e) => e.stopPropagation()}>
+          <button 
+            onClick={() => { setEditingNote(note); navigate('delivery-note-form'); }}
+            className="premium-button-secondary flex-1 px-3 py-2 text-[10px] uppercase tracking-widest"
+          >
+            Editar
+          </button>
+          <button 
+            onClick={() => handleDeleteClick(note.id)}
+            className="flex-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-rose-600 transition-colors hover:bg-rose-100"
+          >
+            Eliminar
+          </button>
+        </div>
+      </div>
+    ))
+  ) : (
+    <div className="premium-card p-8 text-center text-sm italic text-muted">
+      No se encontraron notas de entrega.
+    </div>
+  )}
+</div>
 
   const CustomerFormScreen = () => {
     const [formData, setFormData] = useState<Partial<Customer>>(editingCustomer || {
@@ -1428,7 +1504,7 @@ function App() {
 
     return (
       <div className="p-6 lg:p-10 max-w-3xl mx-auto">
-        <div className="premium-card p-8 lg:p-12">
+        <div className="premium-card p-5 sm:p-8 lg:p-12">
           <form onSubmit={handleSubmit} className="space-y-8">
             <div className="grid grid-cols-1 gap-8">
               <div>
@@ -1535,7 +1611,7 @@ function App() {
     };
 
     return (
-      <div className="p-6 lg:p-10 space-y-8">
+      <div className="p-4 sm:p-6 lg:p-10 space-y-8">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
@@ -1569,7 +1645,7 @@ function App() {
           </div>
         </div>
 
-        <div className="premium-card overflow-hidden">
+        <div className="premium-card overflow-hidden hidden md:block">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -1731,7 +1807,7 @@ function App() {
 
     return (
       <div className="p-6 lg:p-10 max-w-4xl mx-auto">
-        <div className="premium-card p-8 lg:p-12">
+        <div className="premium-card p-5 sm:p-8 lg:p-12">
           <form onSubmit={handleSubmit} className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -1876,9 +1952,9 @@ function App() {
     };
 
     return (
-      <div className="p-6 lg:p-10 space-y-8">
+      <div className="p-4 sm:p-6 lg:p-10 space-y-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-          <div className="relative flex-1 max-w-md">
+          <div className="relative w-full flex-1 sm:max-w-md"
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
             <input 
               type="text" 
@@ -1888,71 +1964,94 @@ function App() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <button onClick={() => { setEditingNote(null); navigate('delivery-note-form'); }} className="premium-button-accent flex items-center justify-center space-x-2">
+          <button onClick={() => { setEditingNote(null); navigate('delivery-note-form'); }} className="premium-button-accent flex w-full items-center justify-center space-x-2 sm:w-auto">
             <Plus size={18} />
             <span className="uppercase tracking-widest text-xs font-bold">Nueva Nota de Entrega</span>
           </button>
         </div>
 
-        <div className="premium-card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-background border-b border-border">
-                  <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest">Número</th>
-                  <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest">Cliente</th>
-                  <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest hidden md:table-cell">Fecha</th>
-                  <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest hidden sm:table-cell">Total</th>
-                  <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest">Estado</th>
-                  <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {filtered.length > 0 ? (
-                  filtered.map((note) => (
-                    <tr 
-                      key={note.id} 
-                      className="hover:bg-background transition-colors cursor-pointer group"
-                      onClick={() => { setViewingNote(note); navigate('delivery-note-detail'); }}
-                    >
-                      <td className="px-6 py-5 font-bold text-primary">{note.noteNumber}</td>
-                      <td className="px-6 py-5 text-sm text-primary">{note.customerName}</td>
-                      <td className="px-6 py-5 text-sm text-muted hidden md:table-cell">{note.issueDate}</td>
-                      <td className="px-6 py-5 text-sm font-bold text-primary hidden sm:table-cell">${note.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                      <td className="px-6 py-5">
-                        <Badge status={note.status} />
-                      </td>
-                      <td className="px-6 py-5 text-right" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button 
-                            onClick={() => { setEditingNote(note); navigate('delivery-note-form'); }}
-                            className="p-2.5 text-muted hover:text-accent hover:bg-accent/10 rounded-lg transition-all"
-                            title="Editar"
-                          >
-                            <Edit2 size={18} />
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteClick(note.id)}
-                            className="p-2.5 text-muted hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
-                            title="Eliminar"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-20 text-center text-muted font-medium italic">
-                      No se encontraron notas de entrega.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+        <div className="md:hidden space-y-3">
+  {paginated.length > 0 ? (
+    paginated.map((item) => (
+      <div key={item.id} className="premium-card p-4 space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-mono text-[10px] text-muted">{item.sku}</p>
+            <h3 className="mt-1 font-bold text-primary leading-snug">{item.name}</h3>
+            {!item.activo && <span className="text-[9px] font-bold text-rose-600 uppercase tracking-tighter">Inactivo</span>}
+          </div>
+          <span className="shrink-0 rounded-full bg-accent/5 px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest text-accent">
+            {item.categoria}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-3 rounded-lg bg-background p-3">
+          <div>
+            <p className="text-[9px] font-bold uppercase tracking-widest text-muted">Precio</p>
+            <p className="mt-1 text-sm font-bold text-primary">${item.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-muted">Stock</p>
+            <p className={`mt-1 text-sm font-bold ${item.stock < 10 ? 'text-rose-600' : 'text-primary'}`}>{item.stock} {item.unit}</p>
           </div>
         </div>
+        <div className="flex gap-2 border-t border-border pt-3">
+          <button 
+            onClick={() => { setEditingItem(item); navigate('item-form'); }}
+            className="premium-button-secondary flex-1 px-3 py-2 text-[10px] uppercase tracking-widest"
+          >
+            Editar
+          </button>
+          <button 
+            onClick={async () => {
+              if (user && window.confirm('¿Estás seguro de eliminar este producto permanentemente?')) {
+                try {
+                  await firestoreService.deleteItem(user.uid, item.id);
+                } catch (error) {
+                  console.error('Error deleting item:', error);
+                  alert('Error al eliminar el producto.');
+                }
+              }
+            }}
+            className="flex-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-rose-600 transition-colors hover:bg-rose-100"
+          >
+            Eliminar
+          </button>
+        </div>
+      </div>
+    ))
+  ) : (
+    <div className="premium-card p-8 text-center text-sm italic text-muted">
+      No se encontraron productos en el inventario.
+    </div>
+  )}
+
+  {totalPages > 1 && (
+    <div className="premium-card px-4 py-3 flex items-center justify-between">
+      <p className="text-[10px] text-muted font-medium">
+        {Math.min(currentPage * itemsPerPage, filtered.length)} de {filtered.length}
+      </p>
+      <div className="flex items-center space-x-2">
+        <button 
+          disabled={currentPage === 1}
+          onClick={() => setCurrentPage(p => p - 1)}
+          className="p-2 text-muted hover:text-primary disabled:opacity-30 transition-colors"
+        >
+          <ArrowLeft size={18} />
+        </button>
+        <span className="text-xs font-bold text-primary px-3 py-1 bg-surface border border-border rounded">
+          {currentPage} / {totalPages}
+        </span>
+        <button 
+          disabled={currentPage === totalPages}
+          onClick={() => setCurrentPage(p => p + 1)}
+          className="p-2 text-muted hover:text-primary disabled:opacity-30 transition-colors"
+        >
+          <ChevronRight size={18} />
+        </button>
+      </div>
+    </div>
+  )}
+</div>
 
         <Modal 
           isOpen={isDeleteModalOpen} 
@@ -2005,7 +2104,38 @@ function App() {
       return { subtotal, total: subtotal };
     }, [formData.lines]);
 
-    const addItem = () => {
+    const selectedCustomer = useMemo(
+  () => customers.find(c => c.id === formData.customerId) || null,
+  [customers, formData.customerId]
+);
+
+const previewNote = useMemo<DeliveryNote>(() => {
+  const now = new Date().toISOString();
+  const fallbackNoteNumber = generateNoteNumber(settings.numberingFormat, deliveryNotes.length);
+
+  return {
+    id: editingNote?.id || 'preview',
+    noteNumber: formData.noteNumber || fallbackNoteNumber,
+    issueDate: formData.issueDate || now.split('T')[0],
+    status: normalizeDeliveryStatus(formData.status),
+    customerId: formData.customerId || '',
+    customerName: selectedCustomer?.name || formData.customerName || 'Cliente no seleccionado',
+    customerPhone: selectedCustomer?.phone || formData.customerPhone || '',
+    customerAddress: selectedCustomer?.address || formData.customerAddress || '',
+    customerEmail: selectedCustomer?.email || formData.customerEmail || '',
+    customerTaxId: selectedCustomer?.taxId || formData.customerTaxId || '',
+    lines: formData.lines || [],
+    subtotal: totals.subtotal,
+    total: totals.total,
+    notes: formData.notes || '',
+    signerName: formData.signerName || '',
+    signatureSvg: formData.signatureSvg,
+    inventoryApplied: editingNote?.inventoryApplied,
+    createdAt: editingNote?.createdAt || now,
+    updatedAt: now
+  };
+}, [deliveryNotes.length, editingNote, formData, selectedCustomer, settings.numberingFormat, totals]);
+      const addItem = () => {
       const item = items.find(i => i.id === selectedItemId);
       if (!item) return;
 
@@ -2065,7 +2195,7 @@ function App() {
         <form onSubmit={handleSubmit} className="space-y-8">
           <div className="grid lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-8">
-              <div className="premium-card p-8 space-y-8">
+              <div className="premium-card p-5 sm:p-8 space-y-8">
                 <h3 className="text-xs font-bold text-primary uppercase tracking-widest border-b border-border pb-4">Información General</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div>
@@ -2190,6 +2320,7 @@ function App() {
               </div>
 
               <div className="premium-card p-8 space-y-6">
+                <PDFPreviewFrame note={previewNote} company={user?.company} customer={selectedCustomer} />
                 <h3 className="text-xs font-bold text-primary uppercase tracking-widest border-b border-border pb-4">Estado y Notas</h3>
                 <div>
                   <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Estado</label>
@@ -2668,7 +2799,7 @@ function App() {
       <div className="lg:ml-64 min-h-screen flex flex-col">
         {renderTopBar(getTitle(), isForm, backTo)}
         
-        <main className="flex-1 pb-20 lg:pb-0">
+        <main className="flex-1 pb-24 lg:pb-0">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentScreen}
@@ -2690,7 +2821,7 @@ function App() {
           </AnimatePresence>
         </main>
 
-        <nav className="fixed bottom-0 left-0 right-0 bg-surface/90 backdrop-blur-md border-t border-border px-4 h-20 flex items-center justify-around lg:hidden no-print z-40">
+        <nav className="mobile-bottom-nav fixed bottom-0 left-0 right-0 bg-surface/90 backdrop-blur-md border-t border-border px-3 flex items-center justify-around lg:hidden no-print z-40">
           {[
             { id: 'dashboard', icon: LayoutDashboard, label: 'Inicio' },
             { id: 'delivery-notes', icon: FileText, label: 'Notas' },
