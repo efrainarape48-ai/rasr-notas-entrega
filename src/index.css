@@ -71,10 +71,45 @@
   @apply bg-border rounded-full hover:bg-muted/30;
 }
 
+@media (max-width: 639px) {
+  html,
+  body,
+  #root {
+    min-width: 0;
+    overflow-x: hidden;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  .premium-card {
+    @apply rounded-2xl;
+  }
+
+  .premium-input {
+    @apply px-3.5 py-3 rounded-xl text-sm;
+  }
+
+  .premium-button-primary,
+  .premium-button-secondary,
+  .premium-button-accent {
+    @apply rounded-xl;
+  }
+}
+
+.mobile-bottom-nav {
+  height: calc(4.75rem + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 @media print {
   .no-print {
     display: none !important;
   }
+
   body {
     background: white !important;
   }
