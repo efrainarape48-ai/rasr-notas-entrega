@@ -1998,14 +1998,13 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
                 <div>
                   <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Precio Unitario ($)</label>
                   <input 
-                    type="number" 
-                    step="0.01" 
-                    required 
-                    className="premium-input" 
-                    placeholder="0.00"
-                    value={formData.price || ''}
-                    onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
-                  />
+  type="number" 
+  min="0.25"
+  step="0.25"
+  className="premium-input w-24" 
+  value={quantity}
+  onChange={(e) => setQuantity(Number(e.target.value))}
+/>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Unidad</label>
@@ -2029,12 +2028,14 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
                 <div>
                   <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Stock Inicial</label>
                   <input 
-                    type="number" 
-                    required 
-                    className="premium-input" 
-                    value={formData.stock || 0}
-                    onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) })}
-                  />
+  type="number" 
+  step="0.25"
+  min="0"
+  required 
+  className="premium-input" 
+  value={formData.stock || 0}
+  onChange={(e) => setFormData({ ...formData, stock: Number(e.target.value) })}
+/>
                 </div>
                 <div className="flex items-end pb-3">
                   <label className="flex items-center gap-3 cursor-pointer">
@@ -2299,24 +2300,37 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
     }, [deliveryNotes.length, editingNote, formData, selectedCustomer, settings.numberingFormat, totals]);
 
     const addItem = () => {
-      const item = items.find(i => i.id === selectedItemId);
-      if (!item) return;
+  const item = items.find(i => i.id === selectedItemId);
+  if (!item) return;
 
-      const newLine: DeliveryNoteLine = {
-        itemId: item.id,
-        name: item.name,
-        quantity: quantity,
-        price: item.price,
-        total: item.price * quantity
-      };
+  const normalizedQuantity = Number(quantity);
 
-      setFormData({
-        ...formData,
-        lines: [...(formData.lines || []), newLine]
-      });
-      setSelectedItemId('');
-      setQuantity(1);
-    };
+  if (!normalizedQuantity || normalizedQuantity <= 0) {
+    alert('La cantidad debe ser mayor a 0.');
+    return;
+  }
+
+  if ((normalizedQuantity * 100) % 25 !== 0) {
+    alert('La cantidad debe ir en pasos de 0.25, por ejemplo: 0.25, 0.50, 0.75, 1, 1.25.');
+    return;
+  }
+
+  const newLine: DeliveryNoteLine = {
+    itemId: item.id,
+    name: item.name,
+    quantity: normalizedQuantity,
+    price: item.price,
+    total: item.price * normalizedQuantity
+  };
+
+  setFormData({
+    ...formData,
+    lines: [...(formData.lines || []), newLine]
+  });
+
+  setSelectedItemId('');
+  setQuantity(1);
+};
 
     const removeItem = (index: number) => {
       const newLines = [...(formData.lines || [])];
