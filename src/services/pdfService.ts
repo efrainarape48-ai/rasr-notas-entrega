@@ -54,6 +54,10 @@ function formatMoney(value: number) {
   });
 }
 
+function formatQuantity(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
 function safeText(value?: string) {
   return (value || '').trim();
 }
@@ -391,7 +395,7 @@ function drawLineItems(pdf: jsPDF, lines: DeliveryNoteLine[], startY: number) {
 
     pdf.setTextColor(0, 0, 0);
     pdf.text(name, LEFT, y);
-    pdf.text(String(line.quantity), QTY_X, y, { align: 'right' });
+    pdf.text(formatQuantity(line.quantity), QTY_X, y, { align: 'right' });
     pdf.text(formatMoney(line.price), PRICE_X, y, { align: 'right' });
     pdf.text(formatMoney(line.total), TOTAL_X, y, { align: 'right' });
 
