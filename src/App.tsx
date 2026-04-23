@@ -605,6 +605,10 @@ const generateNoteNumber = (format: string, count: number) => {
     .replace('{0000}', sequence);
 };
 
+const formatQuantity = (value: number) => {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+};
+
 function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('login');
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -1562,15 +1566,16 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
           <form onSubmit={handleSubmit} className="space-y-8">
             <div className="grid grid-cols-1 gap-8">
               <div>
-                <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Nombre de la Empresa / Cliente</label>
-                <input 
-                  type="text" 
-                  required 
-                  className="premium-input" 
-                  placeholder="Ej. Distribuidora Global S.A."
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                />
+                <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Precio Unitario ($)</label>
+<input 
+  type="number" 
+  required 
+  min="0"
+  step="0.01"
+  className="premium-input" 
+  value={formData.price || 0}
+  onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
+/>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
@@ -2424,12 +2429,13 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
                   </select>
                   <div className="flex gap-4 sm:w-48">
                     <input 
-                      type="number" 
-                      min="1" 
-                      className="premium-input w-24" 
-                      value={quantity}
-                      onChange={(e) => setQuantity(parseInt(e.target.value))}
-                    />
+  type="number" 
+  min="0.25"
+  step="0.25"
+  className="premium-input w-24" 
+  value={quantity}
+  onChange={(e) => setQuantity(Number(e.target.value))}
+/>
                     <button 
                       type="button" 
                       onClick={addItem}
@@ -2456,7 +2462,7 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
                       {(formData.lines || []).map((item, idx) => (
                         <tr key={idx} className="group">
                           <td className="py-4 text-sm font-bold text-primary">{item.name}</td>
-                          <td className="py-4 text-sm text-muted text-right">{item.quantity}</td>
+                          <td className="py-4 text-sm text-muted text-right">{formatQuantity(item.quantity)}</td>
                           <td className="py-4 text-sm text-muted text-right">${item.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                           <td className="py-4 text-sm font-bold text-primary text-right">${item.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                           <td className="py-4 text-right">
@@ -2655,7 +2661,7 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
                     <td className="py-6">
                       <p className="font-bold text-primary text-lg">{item.name}</p>
                     </td>
-                    <td className="py-6 text-right text-muted font-medium">{item.quantity}</td>
+                    <td className="py-6 text-right text-muted font-medium">{formatQuantity(item.quantity)}</td>
                     <td className="py-6 text-right text-muted font-medium">${item.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                     <td className="py-6 text-right font-bold text-primary text-lg">${item.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                   </tr>
