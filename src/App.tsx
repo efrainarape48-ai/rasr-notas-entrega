@@ -2321,12 +2321,12 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
   }
 
   const newLine: DeliveryNoteLine = {
-    itemId: item.id,
-    name: item.name,
-    quantity: normalizedQuantity,
-    price: item.price,
-    total: item.price * normalizedQuantity
-  };
+  itemId: item.id,
+  name: item.name,
+  quantity: normalizedQuantity,
+  price: item.price,
+  total: item.price * normalizedQuantity
+};
 
   setFormData({
     ...formData,
