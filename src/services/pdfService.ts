@@ -21,12 +21,10 @@ const CUSTOMER_BODY_FONT_SIZE = 9.7;
 // Tabla de productos
 const TABLE_HEADER_FONT_SIZE = 10;
 const TABLE_BODY_FONT_SIZE = 10;
-const TABLE_ROW_HEIGHT = 6.8;
-const PRODUCT_LINE_HEIGHT = 4.2;
-const PRODUCT_MAX_LINES = 2;
-
+const TABLE_ROW_HEIGHT = 7.2;
 const NOTES_LINE_HEIGHT = 4.5;
 const RESERVED_TOTALS_HEIGHT = 25;
+const MIN_ITEMS_ON_LAST_PAGE = 5;
 
 // Columnas de la tabla
 // Producto queda más ancho.
@@ -110,42 +108,6 @@ function fitTextToLines(
   visible[maxLines - 1] = fitText(pdf, remainingLastLine, maxWidth);
 
   return visible;
-}
-
-function getProductNameLines(pdf: jsPDF, name: string) {
-  const clean = safeText(name);
-  if (!clean) return [''];
-
-  const lines = pdf.splitTextToSize(clean, PRODUCT_MAX_WIDTH) as string[];
-
-  if (lines.length <= PRODUCT_MAX_LINES) {
-    return lines;
-  }
-
-  const visible = lines.slice(0, PRODUCT_MAX_LINES);
-  const remainingLastLine = lines.slice(PRODUCT_MAX_LINES - 1).join(' ');
-  visible[PRODUCT_MAX_LINES - 1] = fitText(pdf, remainingLastLine, PRODUCT_MAX_WIDTH);
-
-  return visible;
-}
-
-function getLineItemRowHeight(pdf: jsPDF, line: DeliveryNoteLine) {
-  const productNameLines = getProductNameLines(pdf, line.name);
-
-  return Math.max(
-    TABLE_ROW_HEIGHT,
-    productNameLines.length * PRODUCT_LINE_HEIGHT + 2
-  );
-}
-
-function getLinesHeight(pdf: jsPDF, lines: DeliveryNoteLine[]) {
-  if (lines.length === 0) {
-    return TABLE_ROW_HEIGHT;
-  }
-
-  return lines.reduce((sum, line) => {
-    return sum + getLineItemRowHeight(pdf, line);
-  }, 0);
 }
 
 function chunkArray<T>(arr: T[], chunkSize: number): T[][] {
@@ -434,20 +396,15 @@ function drawLineItems(pdf: jsPDF, lines: DeliveryNoteLine[], startY: number) {
   }
 
   lines.forEach((line) => {
-    const productNameLines = getProductNameLines(pdf, line.name);
-    const rowHeight = getLineItemRowHeight(pdf, line);
+    const name = fitText(pdf, safeText(line.name), PRODUCT_MAX_WIDTH);
 
     pdf.setTextColor(0, 0, 0);
-
-    productNameLines.forEach((productLine, index) => {
-      pdf.text(productLine, LEFT, y + index * PRODUCT_LINE_HEIGHT);
-    });
-
+    pdf.text(name, LEFT, y);
     pdf.text(formatQuantity(line.quantity), QTY_X, y, { align: 'right' });
     pdf.text(formatMoney(line.price), PRICE_X, y, { align: 'right' });
     pdf.text(formatMoney(line.total), TOTAL_X, y, { align: 'right' });
 
-    y += rowHeight;
+    y += TABLE_ROW_HEIGHT;
   });
 
   return y;
@@ -526,17 +483,14 @@ function getPageLayoutMetrics(
   const customerEndY = drawCustomerBlock(measurePdf, note, headerBottomY + 9, customer);
   const firstRowY = drawTableHeader(measurePdf, customerEndY);
 
-  measurePdf.setFont('helvetica', 'normal');
-  measurePdf.setFontSize(TABLE_BODY_FONT_SIZE);
-
   return {
-    maxHeightWithoutTotals: Math.max(
-      TABLE_ROW_HEIGHT,
-      BODY_BOTTOM_Y - firstRowY
+    maxRowsWithoutTotals: Math.max(
+      1,
+      Math.floor((BODY_BOTTOM_Y - firstRowY) / TABLE_ROW_HEIGHT)
     ),
-    maxHeightWithTotals: Math.max(
-      TABLE_ROW_HEIGHT,
-      BODY_BOTTOM_Y - RESERVED_TOTALS_HEIGHT - firstRowY
+    maxRowsWithTotals: Math.max(
+      1,
+      Math.floor((BODY_BOTTOM_Y - RESERVED_TOTALS_HEIGHT - firstRowY) / TABLE_ROW_HEIGHT)
     ),
   };
 }
@@ -561,7 +515,7 @@ function planItemPages(
       break;
     }
 
-    const nextCursor = cursor + maxRowsWithoutTotals;
+    const nextCursor = Math.min(cursor + maxRowsWithoutTotals, totalLines.length);
     pages.push(totalLines.slice(cursor, nextCursor));
     cursor = nextCursor;
   }
@@ -589,10 +543,9 @@ function buildPdf(note: DeliveryNote, company: CompanyProfile, customer?: Custom
 
   const layout = getPageLayoutMetrics(note, company, customer);
   const itemPages = planItemPages(
-    pdf,
     note.lines || [],
-    layout.maxHeightWithoutTotals,
-    layout.maxHeightWithTotals
+    layout.maxRowsWithoutTotals,
+    layout.maxRowsWithTotals
   );
 
   let pageNumber = 1;
