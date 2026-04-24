@@ -1,56 +1,109 @@
 # RASR Notas de Entrega
 
+Aplicación web para la gestión de notas de entrega, clientes e inventario. Permite crear documentos profesionales en PDF, controlar productos, registrar clientes y mantener actualizado el stock automáticamente a partir de las notas generadas.
+
 ## Descripción
 
-RASR Notas de Entrega es una solución digital diseñada para optimizar y modernizar la gestión de entregas en pequeñas y medianas empresas. El sistema permite la creación ágil de notas de entrega profesionales, la gestión centralizada de clientes y el control de inventario, todo bajo una interfaz intuitiva y de alto rendimiento.
+RASR Notas de Entrega es una aplicación diseñada para pequeños negocios, talleres, distribuidores y emprendimientos que necesitan emitir notas de entrega de forma rápida, organizada y profesional.
 
-## Stack tecnológico
+La aplicación permite gestionar clientes, productos, inventario y documentos de entrega desde una interfaz web responsive, con soporte para escritorio y dispositivos móviles.
 
-- **Frontend:** React 19 + TypeScript
-- **Estilos:** Tailwind CSS
-- **Animaciones:** Motion
-- **Iconos:** Lucide React
-- **Utilidades:** 
-  - `xlsx` para la gestión de datos en hojas de cálculo.
-  - `jspdf` y `html2canvas` para la exportación de documentos a PDF.
-- **Herramienta de construcción:** Vite
+## Características principales
 
-## Requisitos
+- Autenticación de usuarios con Firebase.
+- Inicio de sesión con correo y contraseña.
+- Inicio de sesión con Google.
+- Gestión de perfil de empresa.
+- Configuración de logo, datos fiscales, teléfono, dirección y correo comercial.
+- Gestión de clientes.
+- Gestión de inventario.
+- Creación, edición y eliminación de notas de entrega.
+- Generación de PDF profesional.
+- Compartir notas por WhatsApp cuando el navegador lo permite.
+- Control automático de inventario.
+- Soporte para cantidades decimales en pasos de 0.25.
+- Interfaz responsive para escritorio y móvil.
 
-- Node.js (versión 18 o superior)
-- npm o yarn
+## Módulos de la aplicación
 
-## Instalación
+### Panel
 
-Para configurar el proyecto localmente, ejecute los siguientes comandos:
+Vista general del sistema y acceso rápido a las funciones principales.
 
-```
-git clone https://github.com/usuario/rasr-notas-entrega.git
-cd rasr-notas-entrega
-npm install
-npm run dev
-```
+### Clientes
 
-## Comandos disponibles
+Permite registrar y administrar clientes con los siguientes datos:
 
-- `npm run dev`: Inicia el servidor de desarrollo en el puerto 3000.
-- `npm run build`: Compila la aplicación para producción en la carpeta `dist`.
-- `npm run preview`: Previsualiza localmente la versión de producción.
-- `npm run clean`: Elimina los archivos generados en la carpeta de construcción.
-- `npm run typecheck`: Realiza la validación de tipos con el compilador de TypeScript.
+- Nombre de empresa o cliente.
+- RIF, NIF o identificación fiscal.
+- Teléfono de contacto.
+- Correo electrónico.
+- Dirección fiscal.
 
-## Flujo principal de uso
+### Inventario
 
-1. **Configuración inicial:** El usuario registra su cuenta y completa el perfil de su empresa, incluyendo logotipo y datos fiscales.
-2. **Inventario:** Carga de productos mediante entrada manual o importación masiva desde archivos Excel.
-3. **Clientes:** Registro y administración de la base de datos de clientes.
-4. **Documentación:** Creación de notas de entrega seleccionando clientes y productos, con cálculo automático de importes y captura de firma digital.
-5. **Distribución:** Generación instantánea de archivos PDF y opciones para compartir vía WhatsApp.
+Permite crear y administrar productos con:
 
-## Estado actual del proyecto
+- SKU.
+- Nombre o descripción del producto.
+- Categoría.
+- Precio unitario.
+- Stock.
+- Unidad de medida.
+- Estado activo/inactivo.
 
-El proyecto se encuentra actualmente en su fase de Producto Mínimo Viable (MVP). Todas las funcionalidades de la interfaz de usuario son operativas y el diseño es completamente responsivo.
+El inventario soporta cantidades decimales, por ejemplo:
 
-## Nota
+- 0.25
+- 0.50
+- 0.75
+- 1.25
+- 1.50
+- 1.75
 
-Prueba inicial de rama staging
+### Notas de entrega
+
+Permite crear documentos de entrega asociados a un cliente y productos del inventario.
+
+Cada nota puede incluir:
+
+- Número de nota.
+- Fecha de emisión.
+- Cliente.
+- Productos.
+- Cantidades.
+- Precio unitario.
+- Total por línea.
+- Subtotal.
+- Total.
+- Estado de la nota.
+
+### PDF profesional
+
+La aplicación genera un PDF con:
+
+- Logo de la empresa.
+- Nombre comercial.
+- Dirección fiscal.
+- Teléfono.
+- Correo comercial opcional.
+- Identificación fiscal.
+- Datos del cliente.
+- Tabla de productos.
+- Cantidades.
+- Precios.
+- Totales.
+- Pie de página personalizado.
+
+Si el correo comercial de la empresa se deja vacío, no se muestra en el PDF.
+
+## Control de inventario
+
+El sistema ajusta automáticamente el inventario cuando se crean, editan o eliminan notas de entrega.
+
+Ejemplo:
+
+Si un producto tiene stock de `20` y se crea una nota con cantidad `1.75`, el inventario queda en:
+
+```text
+20 - 1.75 = 18.25
