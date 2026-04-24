@@ -2253,7 +2253,7 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
             <p className="text-muted text-sm leading-relaxed">
               ¿Estás seguro de que deseas eliminar esta nota de entrega? Esta acción no se puede deshacer y se perderán todos los datos asociados.
             </p>
-            <div className="flex gap-3 pt-2">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 mb-6">
               <button 
                 onClick={confirmDelete}
                 className="flex-1 bg-rose-600 text-white py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-rose-700 transition-colors shadow-lg shadow-rose-600/20"
@@ -2583,36 +2583,63 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
 
     return (
       <div className="p-6 lg:p-10 max-w-5xl mx-auto space-y-8">
-        <div className="flex items-center justify-between no-print">
-          <button onClick={() => navigate('delivery-notes')} className="premium-button-secondary flex items-center space-x-2 py-2.5 px-4">
-            <ArrowLeft size={18} />
-            <span className="text-xs font-bold uppercase tracking-widest">Volver al Listado</span>
-          </button>
-          <div className="flex items-center space-x-3">
-            <button 
-              onClick={() => shareOnWhatsApp(viewingNote, user?.company || { name: 'RASR', phone: '', email: '', address: '', taxId: '' }, setIsSharing, () => setIsShareFallbackOpen(true), customer)} 
-              disabled={isSharing}
-              className="premium-button-secondary flex items-center space-x-2 py-2.5 px-4 border-accent/30 text-accent hover:bg-accent/5 disabled:opacity-50"
-            >
-              {isSharing ? <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" /> : <MessageCircle size={18} />}
-              <span className="text-xs font-bold uppercase tracking-widest">{isSharing ? 'Generando...' : 'Compartir por WhatsApp'}</span>
-            </button>
-            <button 
-              onClick={() => user?.company && saveProfessionalPDF(viewingNote, user.company, customer)} 
-              className="premium-button-secondary flex items-center space-x-2 py-2.5 px-4"
-            >
-              <Printer size={18} />
-              <span className="text-xs font-bold uppercase tracking-widest">Imprimir / PDF</span>
-            </button>
-            <button 
-              onClick={() => { setEditingNote(viewingNote); navigate('delivery-note-form'); }}
-              className="premium-button-primary flex items-center space-x-2 py-2.5 px-6"
-            >
-              <Edit2 size={18} />
-              <span className="text-xs font-bold uppercase tracking-widest">Editar Nota</span>
-            </button>
-          </div>
-        </div>
+        <div className="no-print">
+  <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+    <button 
+      onClick={() => navigate('delivery-notes')} 
+      className="premium-button-secondary w-full flex items-center justify-center gap-2 py-3 px-2 min-h-[58px]"
+    >
+      <ArrowLeft size={16} className="shrink-0" />
+      <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest leading-tight text-center">
+        Volver al Listado
+      </span>
+    </button>
+
+    <button 
+      onClick={() => shareOnWhatsApp(
+        viewingNote, 
+        user?.company || { name: 'RASR', phone: '', email: '', address: '', taxId: '' }, 
+        setIsSharing, 
+        () => setIsShareFallbackOpen(true), 
+        customer
+      )} 
+      disabled={isSharing}
+      className="premium-button-secondary w-full flex items-center justify-center gap-2 py-3 px-2 min-h-[58px] border-accent/30 text-accent hover:bg-accent/5 disabled:opacity-50"
+    >
+      {isSharing ? (
+        <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin shrink-0" />
+      ) : (
+        <MessageCircle size={16} className="shrink-0" />
+      )}
+      <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest leading-tight text-center">
+        {isSharing ? 'Generando...' : 'Compartir por WhatsApp'}
+      </span>
+    </button>
+
+    <button 
+      onClick={() => user?.company && saveProfessionalPDF(viewingNote, user.company, customer)} 
+      className="premium-button-secondary w-full flex items-center justify-center gap-2 py-3 px-2 min-h-[58px]"
+    >
+      <Printer size={16} className="shrink-0" />
+      <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest leading-tight text-center">
+        Imprimir / PDF
+      </span>
+    </button>
+
+    <button 
+      onClick={() => { 
+        setEditingNote(viewingNote); 
+        navigate('delivery-note-form'); 
+      }}
+      className="premium-button-primary w-full flex items-center justify-center gap-2 py-3 px-2 min-h-[58px]"
+    >
+      <Edit2 size={16} className="shrink-0" />
+      <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest leading-tight text-center">
+        Editar Nota
+      </span>
+    </button>
+  </div>
+</div>
 
         <div id="delivery-note-pdf" className="premium-card p-12 lg:p-20 space-y-16 bg-white shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-accent/5 rounded-full -mr-32 -mt-32 blur-3xl"></div>
