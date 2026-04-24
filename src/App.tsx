@@ -605,6 +605,10 @@ const generateNoteNumber = (format: string, count: number) => {
     .replace('{0000}', sequence);
 };
 
+const formatQuantity = (value: number) => {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+};
+
 function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('login');
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -1527,110 +1531,132 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
   };
 
   const CustomerFormScreen = () => {
-    const [formData, setFormData] = useState<Partial<Customer>>(editingCustomer || {
-      name: '',
-      email: '',
-      phone: '',
-      address: '',
-      taxId: ''
-    });
+  const [formData, setFormData] = useState<Partial<Customer>>(editingCustomer || {
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    taxId: ''
+  });
 
-    const handleSubmit = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!user) return;
-      
-      const now = new Date().toISOString();
-      const customerData: Customer = {
-        ...formData,
-        id: editingCustomer?.id || Math.random().toString(36).substr(2, 9),
-        createdAt: editingCustomer?.createdAt || now,
-        updatedAt: now
-      } as Customer;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    
+    const now = new Date().toISOString();
+    const customerData: Customer = {
+      ...formData,
+      id: editingCustomer?.id || Math.random().toString(36).substr(2, 9),
+      createdAt: editingCustomer?.createdAt || now,
+      updatedAt: now
+    } as Customer;
 
-      try {
-        await firestoreService.saveCustomer(user.uid, customerData);
-        navigate('customers');
-      } catch (error) {
-        console.error('Error saving customer:', error);
-        alert('Error al guardar el cliente en la base de datos.');
-      }
-    };
-
-    return (
-      <div className="p-6 lg:p-10 max-w-3xl mx-auto">
-        <div className="premium-card p-5 sm:p-8 lg:p-12">
-          <form onSubmit={handleSubmit} className="space-y-8">
-            <div className="grid grid-cols-1 gap-8">
-              <div>
-                <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Nombre de la Empresa / Cliente</label>
-                <input 
-                  type="text" 
-                  required 
-                  className="premium-input" 
-                  placeholder="Ej. Distribuidora Global S.A."
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Correo Electrónico</label>
-                  <input 
-                    type="email" 
-                    required 
-                    className="premium-input" 
-                    placeholder="cliente@ejemplo.com"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Teléfono de Contacto</label>
-                  <input 
-                    type="tel" 
-                    required 
-                    className="premium-input" 
-                    placeholder="+52 ..."
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">RFC / Identificación Fiscal</label>
-                <input 
-                  type="text" 
-                  className="premium-input" 
-                  placeholder="Opcional"
-                  value={formData.taxId}
-                  onChange={(e) => setFormData({ ...formData, taxId: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Dirección Completa</label>
-                <textarea 
-                  rows={3} 
-                  required 
-                  className="premium-input" 
-                  placeholder="Calle, Número, Colonia, Ciudad, Estado..."
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                ></textarea>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4 pt-6">
-              <button type="submit" className="premium-button-primary flex-1 py-4 text-sm uppercase tracking-widest font-bold">
-                {editingCustomer ? 'Actualizar Cliente' : 'Crear Cliente'}
-              </button>
-              <button type="button" onClick={() => navigate('customers')} className="premium-button-secondary py-4 px-10 text-sm uppercase tracking-widest font-bold">
-                Cancelar
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
+    try {
+      await firestoreService.saveCustomer(user.uid, customerData);
+      navigate('customers');
+    } catch (error) {
+      console.error('Error saving customer:', error);
+      alert('Error al guardar el cliente en la base de datos.');
+    }
   };
+
+  return (
+    <div className="p-6 lg:p-10 max-w-3xl mx-auto">
+      <div className="premium-card p-5 sm:p-8 lg:p-12">
+        <form onSubmit={handleSubmit} className="space-y-8">
+          <div className="grid grid-cols-1 gap-8">
+            <div>
+              <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">
+                Nombre de la Empresa / Cliente
+              </label>
+              <input 
+                type="text" 
+                required 
+                className="premium-input" 
+                placeholder="Ej. Cliente 1"
+                value={formData.name || ''}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">
+                RIF / NIF 
+              </label>
+              <input 
+                type="text" 
+                className="premium-input" 
+                placeholder="Ej. J-12345678-9"
+                value={formData.taxId || ''}
+                onChange={(e) => setFormData({ ...formData, taxId: e.target.value })}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">
+                  Teléfono de Contacto
+                </label>
+                <input 
+                  type="tel" 
+                  required 
+                  className="premium-input" 
+                  placeholder="+58 ..."
+                  value={formData.phone || ''}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">
+                  Correo Electrónico
+                </label>
+                <input 
+                  type="email" 
+                  className="premium-input" 
+                  placeholder="cliente@ejemplo.com"
+                  value={formData.email || ''}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">
+                Dirección Fiscal
+              </label>
+              <textarea 
+                rows={3} 
+                required 
+                className="premium-input" 
+                placeholder="Dirección fiscal completa..."
+                value={formData.address || ''}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+              ></textarea>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-4 pt-6">
+            <button 
+              type="submit" 
+              className="premium-button-primary flex-1 py-4 text-sm uppercase tracking-widest font-bold"
+            >
+              {editingCustomer ? 'Actualizar Cliente' : 'Crear Cliente'}
+            </button>
+
+            <button 
+              type="button" 
+              onClick={() => navigate('customers')} 
+              className="premium-button-secondary py-4 px-10 text-sm uppercase tracking-widest font-bold"
+            >
+              Cancelar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
 
   const ItemsScreen = () => {
     const [searchTerm, setSearchTerm] = useState('');
@@ -1997,15 +2023,15 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Precio Unitario ($)</label>
-                  <input 
-                    type="number" 
-                    step="0.01" 
-                    required 
-                    className="premium-input" 
-                    placeholder="0.00"
-                    value={formData.price || ''}
-                    onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
-                  />
+<input 
+  type="number" 
+  required
+  min="0"
+  step="0.01"
+  className="premium-input" 
+  value={formData.price || 0}
+  onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
+/>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Unidad</label>
@@ -2029,12 +2055,14 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
                 <div>
                   <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Stock Inicial</label>
                   <input 
-                    type="number" 
-                    required 
-                    className="premium-input" 
-                    value={formData.stock || 0}
-                    onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) })}
-                  />
+  type="number" 
+  step="0.25"
+  min="0"
+  required 
+  className="premium-input" 
+  value={formData.stock || 0}
+  onChange={(e) => setFormData({ ...formData, stock: Number(e.target.value) })}
+/>
                 </div>
                 <div className="flex items-end pb-3">
                   <label className="flex items-center gap-3 cursor-pointer">
@@ -2225,7 +2253,7 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
             <p className="text-muted text-sm leading-relaxed">
               ¿Estás seguro de que deseas eliminar esta nota de entrega? Esta acción no se puede deshacer y se perderán todos los datos asociados.
             </p>
-            <div className="flex gap-3 pt-2">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 mb-6">
               <button 
                 onClick={confirmDelete}
                 className="flex-1 bg-rose-600 text-white py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-rose-700 transition-colors shadow-lg shadow-rose-600/20"
@@ -2299,24 +2327,37 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
     }, [deliveryNotes.length, editingNote, formData, selectedCustomer, settings.numberingFormat, totals]);
 
     const addItem = () => {
-      const item = items.find(i => i.id === selectedItemId);
-      if (!item) return;
+  const item = items.find(i => i.id === selectedItemId);
+  if (!item) return;
 
-      const newLine: DeliveryNoteLine = {
-        itemId: item.id,
-        name: item.name,
-        quantity: quantity,
-        price: item.price,
-        total: item.price * quantity
-      };
+  const normalizedQuantity = Number(quantity);
 
-      setFormData({
-        ...formData,
-        lines: [...(formData.lines || []), newLine]
-      });
-      setSelectedItemId('');
-      setQuantity(1);
-    };
+  if (!normalizedQuantity || normalizedQuantity <= 0) {
+    alert('La cantidad debe ser mayor a 0.');
+    return;
+  }
+
+  if ((normalizedQuantity * 100) % 25 !== 0) {
+    alert('La cantidad debe ir en pasos de 0.25, por ejemplo: 0.25, 0.50, 0.75, 1, 1.25.');
+    return;
+  }
+
+  const newLine: DeliveryNoteLine = {
+  itemId: item.id,
+  name: item.name,
+  quantity: normalizedQuantity,
+  price: item.price,
+  total: item.price * normalizedQuantity
+};
+
+  setFormData({
+    ...formData,
+    lines: [...(formData.lines || []), newLine]
+  });
+
+  setSelectedItemId('');
+  setQuantity(1);
+};
 
     const removeItem = (index: number) => {
       const newLines = [...(formData.lines || [])];
@@ -2410,12 +2451,13 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
                   </select>
                   <div className="flex gap-4 sm:w-48">
                     <input 
-                      type="number" 
-                      min="1" 
-                      className="premium-input w-24" 
-                      value={quantity}
-                      onChange={(e) => setQuantity(parseInt(e.target.value))}
-                    />
+  type="number" 
+  min="0.25"
+  step="0.25"
+  className="premium-input w-24" 
+  value={quantity}
+  onChange={(e) => setQuantity(Number(e.target.value))}
+/>
                     <button 
                       type="button" 
                       onClick={addItem}
@@ -2442,7 +2484,7 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
                       {(formData.lines || []).map((item, idx) => (
                         <tr key={idx} className="group">
                           <td className="py-4 text-sm font-bold text-primary">{item.name}</td>
-                          <td className="py-4 text-sm text-muted text-right">{item.quantity}</td>
+                          <td className="py-4 text-sm text-muted text-right">{formatQuantity(item.quantity)}</td>
                           <td className="py-4 text-sm text-muted text-right">${item.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                           <td className="py-4 text-sm font-bold text-primary text-right">${item.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                           <td className="py-4 text-right">
@@ -2541,36 +2583,63 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
 
     return (
       <div className="p-6 lg:p-10 max-w-5xl mx-auto space-y-8">
-        <div className="flex items-center justify-between no-print">
-          <button onClick={() => navigate('delivery-notes')} className="premium-button-secondary flex items-center space-x-2 py-2.5 px-4">
-            <ArrowLeft size={18} />
-            <span className="text-xs font-bold uppercase tracking-widest">Volver al Listado</span>
-          </button>
-          <div className="flex items-center space-x-3">
-            <button 
-              onClick={() => shareOnWhatsApp(viewingNote, user?.company || { name: 'RASR', phone: '', email: '', address: '', taxId: '' }, setIsSharing, () => setIsShareFallbackOpen(true), customer)} 
-              disabled={isSharing}
-              className="premium-button-secondary flex items-center space-x-2 py-2.5 px-4 border-accent/30 text-accent hover:bg-accent/5 disabled:opacity-50"
-            >
-              {isSharing ? <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" /> : <MessageCircle size={18} />}
-              <span className="text-xs font-bold uppercase tracking-widest">{isSharing ? 'Generando...' : 'Compartir por WhatsApp'}</span>
-            </button>
-            <button 
-              onClick={() => user?.company && saveProfessionalPDF(viewingNote, user.company, customer)} 
-              className="premium-button-secondary flex items-center space-x-2 py-2.5 px-4"
-            >
-              <Printer size={18} />
-              <span className="text-xs font-bold uppercase tracking-widest">Imprimir / PDF</span>
-            </button>
-            <button 
-              onClick={() => { setEditingNote(viewingNote); navigate('delivery-note-form'); }}
-              className="premium-button-primary flex items-center space-x-2 py-2.5 px-6"
-            >
-              <Edit2 size={18} />
-              <span className="text-xs font-bold uppercase tracking-widest">Editar Nota</span>
-            </button>
-          </div>
-        </div>
+        <div className="no-print">
+  <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+    <button 
+      onClick={() => navigate('delivery-notes')} 
+      className="premium-button-secondary w-full flex items-center justify-center gap-2 py-3 px-2 min-h-[58px]"
+    >
+      <ArrowLeft size={16} className="shrink-0" />
+      <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest leading-tight text-center">
+        Volver al Listado
+      </span>
+    </button>
+
+    <button 
+      onClick={() => shareOnWhatsApp(
+        viewingNote, 
+        user?.company || { name: 'RASR', phone: '', email: '', address: '', taxId: '' }, 
+        setIsSharing, 
+        () => setIsShareFallbackOpen(true), 
+        customer
+      )} 
+      disabled={isSharing}
+      className="premium-button-secondary w-full flex items-center justify-center gap-2 py-3 px-2 min-h-[58px] border-accent/30 text-accent hover:bg-accent/5 disabled:opacity-50"
+    >
+      {isSharing ? (
+        <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin shrink-0" />
+      ) : (
+        <MessageCircle size={16} className="shrink-0" />
+      )}
+      <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest leading-tight text-center">
+        {isSharing ? 'Generando...' : 'Compartir por WhatsApp'}
+      </span>
+    </button>
+
+    <button 
+      onClick={() => user?.company && saveProfessionalPDF(viewingNote, user.company, customer)} 
+      className="premium-button-secondary w-full flex items-center justify-center gap-2 py-3 px-2 min-h-[58px]"
+    >
+      <Printer size={16} className="shrink-0" />
+      <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest leading-tight text-center">
+        Imprimir / PDF
+      </span>
+    </button>
+
+    <button 
+      onClick={() => { 
+        setEditingNote(viewingNote); 
+        navigate('delivery-note-form'); 
+      }}
+      className="premium-button-primary w-full flex items-center justify-center gap-2 py-3 px-2 min-h-[58px]"
+    >
+      <Edit2 size={16} className="shrink-0" />
+      <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest leading-tight text-center">
+        Editar Nota
+      </span>
+    </button>
+  </div>
+</div>
 
         <div id="delivery-note-pdf" className="premium-card p-12 lg:p-20 space-y-16 bg-white shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-accent/5 rounded-full -mr-32 -mt-32 blur-3xl"></div>
@@ -2641,7 +2710,7 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
                     <td className="py-6">
                       <p className="font-bold text-primary text-lg">{item.name}</p>
                     </td>
-                    <td className="py-6 text-right text-muted font-medium">{item.quantity}</td>
+                    <td className="py-6 text-right text-muted font-medium">{formatQuantity(item.quantity)}</td>
                     <td className="py-6 text-right text-muted font-medium">${item.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                     <td className="py-6 text-right font-bold text-primary text-lg">${item.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                   </tr>

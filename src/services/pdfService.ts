@@ -17,15 +17,22 @@ const DOCUMENT_NUMBER_FONT_SIZE = 10.2;
 const HEADER_INFO_FONT_SIZE = 8.5;
 const CUSTOMER_TITLE_FONT_SIZE = 10.5;
 const CUSTOMER_BODY_FONT_SIZE = 9.7;
-const TABLE_HEADER_FONT_SIZE = 10.6;
-const TABLE_BODY_FONT_SIZE = 11;
-const TABLE_ROW_HEIGHT = 7.8;
+
+// Tabla de productos.
+// Esta versión mantiene cada producto en una sola línea,
+// reduce el tamaño de letra y pega más las filas.
+const TABLE_HEADER_FONT_SIZE = 9.4;
+const TABLE_BODY_FONT_SIZE = 8.8;
+const TABLE_ROW_HEIGHT = 5.4;
 const NOTES_LINE_HEIGHT = 4.5;
 const RESERVED_TOTALS_HEIGHT = 25;
 const MIN_ITEMS_ON_LAST_PAGE = 5;
 
-const QTY_X = 132;
-const PRICE_X = 162;
+// Columnas de la tabla.
+// Producto gana más ancho.
+// Cant., Precio y Total quedan compactos hacia la derecha.
+const QTY_X = 152;
+const PRICE_X = 174;
 const TOTAL_X = RIGHT;
 const PRODUCT_MAX_WIDTH = QTY_X - LEFT - 7;
 
@@ -52,6 +59,10 @@ function formatMoney(value: number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+function formatQuantity(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
 function safeText(value?: string) {
@@ -351,8 +362,8 @@ function drawCustomerBlock(
 }
 
 function drawTableHeader(pdf: jsPDF, startY: number) {
-  const headerTopY = startY - 5.4;
-  const headerHeight = 8.8;
+  const headerTopY = startY - 5.1;
+  const headerHeight = 7.8;
 
   pdf.setFillColor(242, 244, 247);
   pdf.rect(LEFT, headerTopY, RIGHT - LEFT, headerHeight, 'F');
@@ -370,7 +381,7 @@ function drawTableHeader(pdf: jsPDF, startY: number) {
   pdf.text('Precio', PRICE_X, startY, { align: 'right' });
   pdf.text('Total', TOTAL_X - 1, startY, { align: 'right' });
 
-  return startY + 9.5;
+  return startY + 7.6;
 }
 
 function drawLineItems(pdf: jsPDF, lines: DeliveryNoteLine[], startY: number) {
@@ -383,7 +394,7 @@ function drawLineItems(pdf: jsPDF, lines: DeliveryNoteLine[], startY: number) {
     pdf.setTextColor(110, 110, 110);
     pdf.text('No hay productos agregados.', LEFT, y);
     pdf.setTextColor(0, 0, 0);
-    return y + 7;
+    return y + 6;
   }
 
   lines.forEach((line) => {
@@ -391,7 +402,7 @@ function drawLineItems(pdf: jsPDF, lines: DeliveryNoteLine[], startY: number) {
 
     pdf.setTextColor(0, 0, 0);
     pdf.text(name, LEFT, y);
-    pdf.text(String(line.quantity), QTY_X, y, { align: 'right' });
+    pdf.text(formatQuantity(line.quantity), QTY_X, y, { align: 'right' });
     pdf.text(formatMoney(line.price), PRICE_X, y, { align: 'right' });
     pdf.text(formatMoney(line.total), TOTAL_X, y, { align: 'right' });
 
@@ -506,7 +517,7 @@ function planItemPages(
       break;
     }
 
-    const nextCursor = cursor + maxRowsWithoutTotals;
+    const nextCursor = Math.min(cursor + maxRowsWithoutTotals, totalLines.length);
     pages.push(totalLines.slice(cursor, nextCursor));
     cursor = nextCursor;
   }

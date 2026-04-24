@@ -53,4 +53,4 @@ El proyecto se encuentra actualmente en su fase de Producto Mínimo Viable (MVP)
 
 ## Nota
 
-Aún sin Firebase; persistencia local/real pendiente en siguiente fase.
+Prueba inicial de rama staging
