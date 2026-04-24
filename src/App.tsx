@@ -2854,46 +2854,40 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Teléfono de Contacto</label>
-                <input 
-                  type="text" 
-                  className="premium-input" 
-                  value={companyData.phone} 
-                  onChange={(e) => setCompanyData({ ...companyData, phone: e.target.value })}
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Dirección Fiscal</label>
-                <textarea 
-                  rows={3} 
-                  className="premium-input" 
-                  value={companyData.address}
-                  onChange={(e) => setCompanyData({ ...companyData, address: e.target.value })}
-                ></textarea>
-              </div>
-            </div>
-          </div>
-          <div className="p-8 space-y-8">
-            <h3 className="text-xs font-bold text-primary uppercase tracking-widest border-b border-border pb-4">Personalización de Documentos</h3>
-            <div className="space-y-6">
-              <div>
-                <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Logo de la Empresa</label>
-                <LogoUpload 
-                  logoData={companyData.logoData} 
-                  onUpload={(data) => setCompanyData({ ...companyData, logoData: data })} 
-                />
-                <p className="mt-2 text-[10px] text-muted uppercase tracking-wider">Se recomienda un fondo transparente y formato horizontal.</p>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Texto de Pie de Página</label>
-                <textarea 
-                  rows={2} 
-                  className="premium-input" 
-                  placeholder="Gracias por su confianza. Términos y condiciones aplicables..."
-                  value={companyData.footerText || ''}
-                  onChange={(e) => setCompanyData({ ...companyData, footerText: e.target.value })}
-                ></textarea>
-              </div>
+  <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Teléfono de Contacto</label>
+  <input 
+    type="text" 
+    className="premium-input" 
+    value={companyData.phone} 
+    onChange={(e) => setCompanyData({ ...companyData, phone: e.target.value })}
+  />
+</div>
+
+<div className="sm:col-span-2">
+  <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">
+    Correo electrónico para documentos
+  </label>
+  <input 
+    type="email" 
+    className="premium-input" 
+    placeholder="correo@empresa.com"
+    value={companyData.email || ''} 
+    onChange={(e) => setCompanyData({ ...companyData, email: e.target.value })}
+  />
+  <p className="mt-2 text-[10px] text-muted uppercase tracking-wider">
+    Este correo aparecerá en el PDF. Si lo dejas vacío, no se mostrará.
+  </p>
+</div>
+
+<div className="sm:col-span-2">
+  <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Dirección Fiscal</label>
+  <textarea
+    rows={3}
+    className="premium-input"
+    value={companyData.address}
+    onChange={(e) => setCompanyData({ ...companyData, address: e.target.value })}
+  ></textarea>
+</div>
             </div>
           </div>
 
