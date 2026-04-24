@@ -542,10 +542,9 @@ function getPageLayoutMetrics(
 }
 
 function planItemPages(
-  pdf: jsPDF,
   totalLines: DeliveryNoteLine[],
-  maxHeightWithoutTotals: number,
-  maxHeightWithTotals: number
+  maxRowsWithoutTotals: number,
+  maxRowsWithTotals: number
 ) {
   if (totalLines.length === 0) {
     return [[]] as DeliveryNoteLine[][];
@@ -554,45 +553,32 @@ function planItemPages(
   const pages: DeliveryNoteLine[][] = [];
   let cursor = 0;
 
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(TABLE_BODY_FONT_SIZE);
-
   while (cursor < totalLines.length) {
-    const pageLines: DeliveryNoteLine[] = [];
-    let usedHeight = 0;
+    const remaining = totalLines.length - cursor;
 
-    while (cursor < totalLines.length) {
-      const line = totalLines[cursor];
-      const rowHeight = getLineItemRowHeight(pdf, line);
-
-      const isLastRemainingLine = cursor === totalLines.length - 1;
-      const pageLimit = isLastRemainingLine ? maxHeightWithTotals : maxHeightWithoutTotals;
-
-      if (pageLines.length > 0 && usedHeight + rowHeight > pageLimit) {
-        break;
-      }
-
-      pageLines.push(line);
-      usedHeight += rowHeight;
-      cursor += 1;
-
-      const remainingLines = totalLines.length - cursor;
-      const remainingHeight = getLinesHeight(pdf, totalLines.slice(cursor));
-
-      if (
-        remainingLines > 0 &&
-        remainingHeight <= maxHeightWithTotals
-      ) {
-        break;
-      }
+    if (remaining <= maxRowsWithTotals) {
+      pages.push(totalLines.slice(cursor));
+      break;
     }
 
-    if (pageLines.length === 0 && cursor < totalLines.length) {
-      pageLines.push(totalLines[cursor]);
-      cursor += 1;
-    }
+    const nextCursor = cursor + maxRowsWithoutTotals;
+    pages.push(totalLines.slice(cursor, nextCursor));
+    cursor = nextCursor;
+  }
 
-    pages.push(pageLines);
+  if (pages.length > 1) {
+    const lastPage = pages[pages.length - 1];
+    const prevPage = pages[pages.length - 2];
+
+    if (lastPage.length < MIN_ITEMS_ON_LAST_PAGE && prevPage.length > MIN_ITEMS_ON_LAST_PAGE) {
+      const needed = MIN_ITEMS_ON_LAST_PAGE - lastPage.length;
+      const movable = Math.min(needed, prevPage.length - MIN_ITEMS_ON_LAST_PAGE);
+
+      if (movable > 0) {
+        const movedItems = prevPage.splice(prevPage.length - movable, movable);
+        pages[pages.length - 1] = [...movedItems, ...lastPage];
+      }
+    }
   }
 
   return pages;
