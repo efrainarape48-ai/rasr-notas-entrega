@@ -1531,111 +1531,132 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
   };
 
   const CustomerFormScreen = () => {
-    const [formData, setFormData] = useState<Partial<Customer>>(editingCustomer || {
-      name: '',
-      email: '',
-      phone: '',
-      address: '',
-      taxId: ''
-    });
+  const [formData, setFormData] = useState<Partial<Customer>>(editingCustomer || {
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    taxId: ''
+  });
 
-    const handleSubmit = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!user) return;
-      
-      const now = new Date().toISOString();
-      const customerData: Customer = {
-        ...formData,
-        id: editingCustomer?.id || Math.random().toString(36).substr(2, 9),
-        createdAt: editingCustomer?.createdAt || now,
-        updatedAt: now
-      } as Customer;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    
+    const now = new Date().toISOString();
+    const customerData: Customer = {
+      ...formData,
+      id: editingCustomer?.id || Math.random().toString(36).substr(2, 9),
+      createdAt: editingCustomer?.createdAt || now,
+      updatedAt: now
+    } as Customer;
 
-      try {
-        await firestoreService.saveCustomer(user.uid, customerData);
-        navigate('customers');
-      } catch (error) {
-        console.error('Error saving customer:', error);
-        alert('Error al guardar el cliente en la base de datos.');
-      }
-    };
+    try {
+      await firestoreService.saveCustomer(user.uid, customerData);
+      navigate('customers');
+    } catch (error) {
+      console.error('Error saving customer:', error);
+      alert('Error al guardar el cliente en la base de datos.');
+    }
+  };
 
-    return (
-      <div className="p-6 lg:p-10 max-w-3xl mx-auto">
-        <div className="premium-card p-5 sm:p-8 lg:p-12">
-          <form onSubmit={handleSubmit} className="space-y-8">
-            <div className="grid grid-cols-1 gap-8">
+  return (
+    <div className="p-6 lg:p-10 max-w-3xl mx-auto">
+      <div className="premium-card p-5 sm:p-8 lg:p-12">
+        <form onSubmit={handleSubmit} className="space-y-8">
+          <div className="grid grid-cols-1 gap-8">
+            <div>
+              <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">
+                Nombre de la Empresa / Cliente
+              </label>
+              <input 
+                type="text" 
+                required 
+                className="premium-input" 
+                placeholder="Ej. Cliente 1"
+                value={formData.name || ''}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">
+                RIF / NIF 
+              </label>
+              <input 
+                type="text" 
+                className="premium-input" 
+                placeholder="Ej. J-12345678-9"
+                value={formData.taxId || ''}
+                onChange={(e) => setFormData({ ...formData, taxId: e.target.value })}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
-                <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Precio Unitario ($)</label>
-<input 
-  type="number" 
-  required 
-  min="0"
-  step="0.01"
-  className="premium-input" 
-  value={formData.price || 0}
-  onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
-/>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Correo Electrónico</label>
-                  <input 
-                    type="email" 
-                    required 
-                    className="premium-input" 
-                    placeholder="cliente@ejemplo.com"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Teléfono de Contacto</label>
-                  <input 
-                    type="tel" 
-                    required 
-                    className="premium-input" 
-                    placeholder="+52 ..."
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">RFC / Identificación Fiscal</label>
+                <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">
+                  Teléfono de Contacto
+                </label>
                 <input 
-                  type="text" 
-                  className="premium-input" 
-                  placeholder="Opcional"
-                  value={formData.taxId}
-                  onChange={(e) => setFormData({ ...formData, taxId: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Dirección Completa</label>
-                <textarea 
-                  rows={3} 
+                  type="tel" 
                   required 
                   className="premium-input" 
-                  placeholder="Calle, Número, Colonia, Ciudad, Estado..."
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                ></textarea>
+                  placeholder="+58 ..."
+                  value={formData.phone || ''}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">
+                  Correo Electrónico
+                </label>
+                <input 
+                  type="email" 
+                  className="premium-input" 
+                  placeholder="cliente@ejemplo.com"
+                  value={formData.email || ''}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                />
               </div>
             </div>
-            <div className="flex items-center space-x-4 pt-6">
-              <button type="submit" className="premium-button-primary flex-1 py-4 text-sm uppercase tracking-widest font-bold">
-                {editingCustomer ? 'Actualizar Cliente' : 'Crear Cliente'}
-              </button>
-              <button type="button" onClick={() => navigate('customers')} className="premium-button-secondary py-4 px-10 text-sm uppercase tracking-widest font-bold">
-                Cancelar
-              </button>
+
+            <div>
+              <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">
+                Dirección Fiscal
+              </label>
+              <textarea 
+                rows={3} 
+                required 
+                className="premium-input" 
+                placeholder="Dirección fiscal completa..."
+                value={formData.address || ''}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+              ></textarea>
             </div>
-          </form>
-        </div>
+          </div>
+
+          <div className="flex items-center space-x-4 pt-6">
+            <button 
+              type="submit" 
+              className="premium-button-primary flex-1 py-4 text-sm uppercase tracking-widest font-bold"
+            >
+              {editingCustomer ? 'Actualizar Cliente' : 'Crear Cliente'}
+            </button>
+
+            <button 
+              type="button" 
+              onClick={() => navigate('customers')} 
+              className="premium-button-secondary py-4 px-10 text-sm uppercase tracking-widest font-bold"
+            >
+              Cancelar
+            </button>
+          </div>
+        </form>
       </div>
-    );
-  };
+    </div>
+  );
+};
 
   const ItemsScreen = () => {
     const [searchTerm, setSearchTerm] = useState('');
@@ -2003,12 +2024,14 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
                 <div>
                   <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Precio Unitario ($)</label>
                   <input 
+  <input 
   type="number" 
-  min="0.25"
-  step="0.25"
-  className="premium-input w-24" 
-  value={quantity}
-  onChange={(e) => setQuantity(Number(e.target.value))}
+  required
+  min="0"
+  step="0.01"
+  className="premium-input" 
+  value={formData.price || 0}
+  onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
 />
                 </div>
                 <div>
