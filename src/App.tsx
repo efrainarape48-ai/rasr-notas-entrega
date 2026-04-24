@@ -2023,8 +2023,7 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Precio Unitario ($)</label>
-                  <input 
-  <input 
+<input 
   type="number" 
   required
   min="0"
