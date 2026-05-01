@@ -2289,6 +2289,18 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
 
     const [selectedItemId, setSelectedItemId] = useState('');
     const [quantity, setQuantity] = useState(1);
+    const [productSearch, setProductSearch] = useState('');
+    const [productDropdownOpen, setProductDropdownOpen] = useState(false);
+
+    useEffect(() => {
+      if (!productDropdownOpen) return;
+      const handleClickOutside = (e: MouseEvent) => {
+        const target = e.target as HTMLElement;
+        if (!target.closest('[data-product-dropdown]')) setProductDropdownOpen(false);
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [productDropdownOpen]);
 
     const totals = useMemo(() => {
       const subtotal = (formData.lines || []).reduce((acc, item) => acc + item.total, 0);
@@ -2441,14 +2453,53 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
                 <h3 className="text-xs font-bold text-primary uppercase tracking-widest border-b border-border pb-4">Partidas / Productos</h3>
                 
                 <div className="flex flex-col sm:flex-row gap-4">
-                  <select 
-                    className="premium-input flex-1"
-                    value={selectedItemId}
-                    onChange={(e) => setSelectedItemId(e.target.value)}
-                  >
-                    <option value="">Seleccionar producto para agregar</option>
-                    {items.map(i => <option key={i.id} value={i.id}>{i.name} (${i.price.toLocaleString()})</option>)}
-                  </select>
+                  <div className="relative flex-1" data-product-dropdown>
+                    <button
+                      type="button"
+                      onClick={() => { setProductDropdownOpen(!productDropdownOpen); setProductSearch(''); }}
+                      className="premium-input w-full text-left flex items-center justify-between"
+                    >
+                      <span className={selectedItemId ? 'text-primary' : 'text-muted'}>
+                        {selectedItemId ? items.find(i => i.id === selectedItemId)?.name ?? 'Seleccionar producto para agregar' : 'Seleccionar producto para agregar'}
+                      </span>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`text-muted transition-transform shrink-0 ml-2 ${productDropdownOpen ? 'rotate-180' : ''}`}><path d="m6 9 6 6 6-6"/></svg>
+                    </button>
+                    {productDropdownOpen && (
+                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-border rounded-xl shadow-xl overflow-hidden">
+                        <div className="p-2 border-b border-border">
+                          <div className="flex items-center gap-2 px-3 py-2 bg-background rounded-lg border border-border">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-muted shrink-0"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                            <input
+                              type="text"
+                              autoFocus
+                              placeholder="Buscar producto..."
+                              className="bg-transparent text-sm outline-none w-full text-primary placeholder:text-muted"
+                              value={productSearch}
+                              onChange={(e) => setProductSearch(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <ul className="max-h-52 overflow-y-auto">
+                          {items.filter(i => i.name.toLowerCase().includes(productSearch.toLowerCase())).length === 0 ? (
+                            <li className="px-4 py-3 text-sm text-muted italic text-center">Sin resultados</li>
+                          ) : (
+                            items.filter(i => i.name.toLowerCase().includes(productSearch.toLowerCase())).map(i => (
+                              <li key={i.id}>
+                                <button
+                                  type="button"
+                                  onClick={() => { setSelectedItemId(i.id); setProductDropdownOpen(false); setProductSearch(''); }}
+                                  className={`w-full text-left px-4 py-3 text-sm hover:bg-background transition-colors flex items-center justify-between gap-3 ${selectedItemId === i.id ? 'bg-primary/5 text-primary font-bold' : 'text-primary'}`}
+                                >
+                                  <span>{i.name}</span>
+                                  <span className="text-xs text-muted shrink-0">${i.price.toLocaleString()}</span>
+                                </button>
+                              </li>
+                            ))
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
                   <div className="flex gap-4 sm:w-48">
                     <input 
   type="number" 
