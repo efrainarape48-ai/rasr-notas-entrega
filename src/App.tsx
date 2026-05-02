@@ -2833,30 +2833,27 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
       footerText: ''
     });
     const [localSettings, setLocalSettings] = useState<AppSettings>(settings);
+    const [settingsLogoData, setSettingsLogoData] = useState<string | undefined>(user?.company?.logoData);
 
     useEffect(() => {
-      setCompanyData(user?.company || {
-        name: '',
-        phone: '',
-        email: '',
-        address: '',
-        taxId: '',
-        footerText: ''
-      });
+      const profile = user?.company || { name: '', phone: '', email: '', address: '', taxId: '', footerText: '' };
+      setCompanyData(profile);
+      setSettingsLogoData(profile.logoData);
       setLocalSettings(settings);
     }, [user?.company, settings]);
 
     const handleSave = async () => {
       if (user) {
         try {
+          const profileToSave = { ...companyData, logoData: settingsLogoData };
           await Promise.all([
-            firestoreService.saveCompanyProfile(user.uid, companyData),
+            firestoreService.saveCompanyProfile(user.uid, profileToSave),
             firestoreService.saveAppSettings(user.uid, localSettings)
           ]);
           
           setUser({
             ...user,
-            company: companyData
+            company: profileToSave
           });
           setSettings(localSettings);
           
@@ -2876,6 +2873,7 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
     const handleDiscard = () => {
       if (user?.company) {
         setCompanyData(user.company);
+        setSettingsLogoData(user.company.logoData);
       }
       setLocalSettings(settings);
     };
@@ -2885,6 +2883,62 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
         <div className="premium-card divide-y divide-border">
           <div className="p-8 space-y-8">
             <h3 className="text-xs font-bold text-primary uppercase tracking-widest border-b border-border pb-4">Perfil de la Empresa</h3>
+            <div className="space-y-2">
+              <p className="text-xs font-bold text-primary uppercase tracking-widest">Logo de la Empresa</p>
+              <div className="flex items-center gap-6">
+                <div className="w-24 h-24 rounded-xl border-2 border-dashed border-border flex items-center justify-center overflow-hidden bg-background relative group">
+                  {settingsLogoData ? (
+                    <img src={settingsLogoData} alt="Logo" className="w-full h-full object-contain" />
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-muted/30"><rect width="20" height="20" x="2" y="2" rx="5"/><path d="M9 22V12h6v10"/><path d="M2 12l10-9 10 9"/></svg>
+                  )}
+                  <input
+                    type="file"
+                    accept=".png,.jpg,.jpeg,.svg"
+                    className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml'];
+                      if (!validTypes.includes(file.type)) { alert('Formato no soportado. Usa PNG, JPG o SVG.'); return; }
+                      if (file.size > 2 * 1024 * 1024) { alert('La imagen no debe superar los 2 MB.'); return; }
+                      const reader = new FileReader();
+                      reader.onload = (ev) => {
+                        const img = new Image();
+                        img.onload = () => {
+                          const canvas = document.createElement('canvas');
+                          let w = img.width, h = img.height;
+                          const max = 400;
+                          if (w > max || h > max) { if (w > h) { h = (h / w) * max; w = max; } else { w = (w / h) * max; h = max; } }
+                          canvas.width = w; canvas.height = h;
+                          canvas.getContext('2d')?.drawImage(img, 0, 0, w, h);
+                          setSettingsLogoData(file.type === 'image/svg+xml' ? ev.target?.result as string : canvas.toDataURL('image/jpeg', 0.7));
+                        };
+                        img.src = ev.target?.result as string;
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-primary/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] text-muted leading-relaxed">Haz clic en la imagen para cambiarla.</p>
+                  <p className="text-[10px] text-muted leading-relaxed">Formatos: PNG, JPG o SVG.</p>
+                  <p className="text-[10px] text-muted leading-relaxed">Tamaño máximo: <span className="font-bold text-primary">2 MB</span> · Recomendado: <span className="font-bold text-primary">400 × 400 px</span>.</p>
+                  {settingsLogoData && (
+                    <button
+                      type="button"
+                      onClick={() => setSettingsLogoData(undefined)}
+                      className="text-[10px] text-rose-600 font-bold uppercase tracking-widest hover:underline"
+                    >
+                      Eliminar Logo
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="sm:col-span-2">
                 <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Nombre de la Empresa</label>
