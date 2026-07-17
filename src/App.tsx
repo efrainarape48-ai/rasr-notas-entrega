@@ -206,11 +206,18 @@ interface ImportRow {
   descripcion: string;
   unidad: string;
   precio_unitario: string | number;
+  precio_costo: string | number;
   stock: string | number;
   categoria: string;
   activo: string | boolean;
   error?: string;
 }
+
+const parseActiveStatus = (value: any): boolean => {
+  if (value === undefined || value === null || value === '') return true;
+  const strVal = String(value).toLowerCase().trim();
+  return strVal === 'true' || strVal === '1' || strVal === 'sí' || strVal === 'yes' || strVal === 'si';
+};
 
 const InventoryImportModal = ({ 
   isOpen, 
@@ -247,13 +254,15 @@ const InventoryImportModal = ({
             descripcion: String(item.descripcion || ''),
             unidad: String(item.unidad || 'unidad'),
             precio_unitario: item.precio_unitario || 0,
+            precio_costo: item.precio_costo || 0,
             stock: item.stock || 0,
             categoria: String(item.categoria || 'General'),
-            activo: item.activo === undefined ? true : (String(item.activo).toLowerCase() === 'true' || item.activo === 1),
+            activo: parseActiveStatus(item.activo),
           };
 
           if (!row.nombre) row.error = 'El nombre es obligatorio';
-          else if (isNaN(Number(row.precio_unitario))) row.error = 'Precio inválido';
+          else if (isNaN(Number(row.precio_unitario))) row.error = 'Precio de venta inválido';
+          else if (isNaN(Number(row.precio_costo))) row.error = 'Precio de costo inválido';
           else if (isNaN(Number(row.stock))) row.error = 'Stock inválido';
 
           return row;
@@ -279,6 +288,7 @@ const InventoryImportModal = ({
       name: row.nombre,
       description: row.descripcion,
       price: Number(row.precio_unitario),
+      costPrice: Number(row.precio_costo) || undefined,
       unit: row.unidad,
       stock: Number(row.stock),
       categoria: row.categoria,
@@ -508,7 +518,7 @@ const LogoUpload = ({ logoData, onUpload }: { logoData?: string; onUpload: (data
 // --- Helper Functions ---
 
 const downloadExcelTemplate = () => {
-  const headers = [['sku', 'nombre', 'descripcion', 'unidad', 'precio_unitario', 'stock', 'categoria', 'activo']];
+  const headers = [['sku', 'nombre', 'descripcion', 'unidad', 'precio_costo', 'precio_unitario', 'stock', 'categoria', 'activo']];
   const ws = XLSX.utils.aoa_to_sheet(headers);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Plantilla");
@@ -1826,11 +1836,12 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
                     Producto {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>
                   <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest hidden lg:table-cell">Categoría</th>
+                  <th className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest text-right hidden xl:table-cell">Precio Costo</th>
                   <th 
                     className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest text-right cursor-pointer hover:text-accent transition-colors"
                     onClick={() => handleSort('price')}
                   >
-                    Precio {sortConfig.key === 'price' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                    Precio Venta {sortConfig.key === 'price' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>
                   <th 
                     className="px-6 py-5 text-[11px] font-bold text-muted uppercase tracking-widest text-center cursor-pointer hover:text-accent transition-colors"
@@ -1854,6 +1865,9 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
                         <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 bg-accent/5 text-accent rounded">
                           {item.categoria}
                         </span>
+                      </td>
+                      <td className="px-6 py-5 text-right text-muted hidden xl:table-cell text-sm">
+                        {item.costPrice ? `$${item.costPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
                       </td>
                       <td className="px-6 py-5 text-right font-bold text-primary">
                         ${item.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -1931,6 +1945,83 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
             </div>
           )}
         </div>
+
+        {/* Inventory Summary */}
+        {items.length > 0 && (
+          <div className="premium-card p-6 space-y-6 border-t-4 border-accent">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-primary uppercase tracking-widest">📊 Resumen del Inventario</h3>
+              <span className="text-[11px] font-bold text-muted uppercase tracking-widest bg-surface px-3 py-1 rounded">{items.filter(i => i.activo).length} Activos</span>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div className="bg-surface rounded-lg p-4 border border-border">
+                  <p className="text-[10px] font-bold text-muted uppercase tracking-widest mb-2">💰 Inversión Total (Costo)</p>
+                  <p className="text-2xl font-bold text-primary">
+                    ${items.reduce((sum, item) => {
+                      const cost = item.costPrice || 0;
+                      return sum + (cost * item.stock);
+                    }, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </p>
+                  <p className="text-[9px] text-muted mt-2">Valor total de los costos × cantidad en stock</p>
+                </div>
+                
+                <div className="bg-surface rounded-lg p-4 border border-border">
+                  <p className="text-[10px] font-bold text-muted uppercase tracking-widest mb-2">📈 Valor en Venta (Potencial)</p>
+                  <p className="text-2xl font-bold text-accent">
+                    ${items.reduce((sum, item) => sum + (item.price * item.stock), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </p>
+                  <p className="text-[9px] text-muted mt-2">Valor de venta × cantidad en stock</p>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="bg-emerald-50 rounded-lg p-4 border-2 border-emerald-200">
+                  <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest mb-2">💹 Ganancia Potencial</p>
+                  <p className="text-2xl font-bold text-emerald-700">
+                    ${Math.max(0, items.reduce((sum, item) => {
+                      const cost = item.costPrice || 0;
+                      return sum + ((item.price - cost) * item.stock);
+                    }, 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </p>
+                  <p className="text-[9px] text-emerald-600 mt-2">Diferencia entre venta y costo</p>
+                </div>
+                
+                <div className="bg-indigo-50 rounded-lg p-4 border-2 border-indigo-200">
+                  <p className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest mb-2">📊 Margen Promedio</p>
+                  <p className="text-2xl font-bold text-indigo-700">
+                    {(() => {
+                      const totalVentas = items.reduce((sum, item) => sum + (item.price * item.stock), 0);
+                      const totalCostos = items.reduce((sum, item) => {
+                        const cost = item.costPrice || 0;
+                        return sum + (cost * item.stock);
+                      }, 0);
+                      const margen = totalVentas > 0 ? ((totalVentas - totalCostos) / totalVentas * 100) : 0;
+                      return margen.toFixed(1);
+                    })()}%
+                  </p>
+                  <p className="text-[9px] text-indigo-600 mt-2">Ganancia / Venta total</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-3 gap-3 pt-4 border-t border-border">
+              <div className="text-center">
+                <p className="text-2xl font-bold text-primary">{items.length}</p>
+                <p className="text-[9px] text-muted uppercase tracking-tighter mt-1">Productos</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-primary">{items.reduce((sum, item) => sum + item.stock, 0).toLocaleString()}</p>
+                <p className="text-[9px] text-muted uppercase tracking-tighter mt-1">Unidades</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-accent">{items.filter(i => i.stock < 10).length}</p>
+                <p className="text-[9px] text-muted uppercase tracking-tighter mt-1">Bajo Stock</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };

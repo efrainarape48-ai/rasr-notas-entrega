@@ -26,6 +26,7 @@ export interface Item {
   name: string;
   description: string;
   price: number;
+  costPrice?: number;
   unit: string;
   stock: number;
   categoria: string;
