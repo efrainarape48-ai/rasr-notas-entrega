@@ -20,8 +20,19 @@ export interface Customer {
   updatedAt?: string;
 }
 
+export interface Inventory {
+  id: string;
+  userId: string;
+  name: string;
+  description?: string;
+  status: 'active' | 'archived';
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Item {
   id: string;
+  inventoryId?: string;
   sku: string;
   name: string;
   description: string;

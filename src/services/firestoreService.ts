@@ -17,6 +17,7 @@ import type {
   AppSettings,
   CompanyProfile,
   Customer,
+  Inventory,
   Item,
   DeliveryNote,
   DeliveryNoteLine,
@@ -38,6 +39,9 @@ const appSettingsDoc = (uid: string) =>
 
 const customersCol = (uid: string) =>
   collection(db, 'users', uid, 'customers');
+
+const inventoriesCol = (uid: string) =>
+  collection(db, 'users', uid, 'inventories');
 
 const itemsCol = (uid: string) =>
   collection(db, 'users', uid, 'items');
@@ -502,4 +506,68 @@ export async function deleteDeliveryNote(
 
     transaction.delete(noteRef);
   });
+}
+
+// ==================== INVENTORIES ====================
+
+export async function createInventory(uid: string, inventory: Omit<Inventory, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) {
+  const id = doc(inventoriesCol(uid)).id;
+  const now = nowIso();
+  const newInventory: Inventory = {
+    ...inventory,
+    id,
+    userId: uid,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await setDoc(doc(inventoriesCol(uid), id), newInventory);
+  return newInventory;
+}
+
+export function onInventories(uid: string, callback: (inventories: Inventory[]) => void) {
+  const q = query(inventoriesCol(uid), orderBy('createdAt', 'desc'));
+  return onSnapshot(q, (snapshot) => {
+    const inventories = snapshot.docs.map((snap) => mapDocWithId<Inventory>(snap));
+    callback(inventories);
+  });
+}
+
+export async function deleteInventory(uid: string, inventoryId: string) {
+  await deleteDoc(doc(inventoriesCol(uid), inventoryId));
+}
+
+export async function updateInventory(uid: string, inventoryId: string, updates: Partial<Inventory>) {
+  await setDoc(doc(inventoriesCol(uid), inventoryId), {
+    ...updates,
+    updatedAt: nowIso(),
+  }, { merge: true });
+}
+
+export async function getInventoryCount(uid: string) {
+  const q = query(inventoriesCol(uid));
+  const snapshot = await new Promise<any>((resolve) => {
+    const unsubscribe = onSnapshot(q, (snap) => {
+      unsubscribe();
+      resolve(snap);
+    });
+  });
+  return snapshot.docs.length;
+}
+
+export async function initializeDefaultInventory(uid: string) {
+  const q = query(inventoriesCol(uid));
+  const snapshot = await new Promise<any>((resolve) => {
+    const unsubscribe = onSnapshot(q, (snap) => {
+      unsubscribe();
+      resolve(snap);
+    });
+  });
+  
+  if (snapshot.docs.length === 0) {
+    await createInventory(uid, {
+      name: 'Inventario Principal',
+      description: 'Inventario por defecto',
+      status: 'active',
+    });
+  }
 }

@@ -43,6 +43,7 @@ import { saveProfessionalPDF, getProfessionalPDFBlob } from './services/pdfServi
 } from 'firebase/auth';
 import { 
   Customer, 
+  Inventory,
   Item, 
   DeliveryNote, 
   Screen, 
@@ -223,12 +224,14 @@ const InventoryImportModal = ({
   isOpen, 
   onClose, 
   onImport,
-  userUid
+  userUid,
+  selectedInventoryId
 }: { 
   isOpen: boolean; 
   onClose: () => void; 
   onImport: (items: Item[]) => void;
   userUid?: string;
+  selectedInventoryId?: string | null;
 }) => {
   const [rows, setRows] = useState<ImportRow[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -284,6 +287,7 @@ const InventoryImportModal = ({
   const handleConfirmImport = async () => {
     const newItems: Item[] = validRows.map(row => ({
       id: Math.random().toString(36).substr(2, 9),
+      inventoryId: selectedInventoryId || undefined,
       sku: row.sku,
       name: row.nombre,
       description: row.descripcion,
@@ -397,6 +401,87 @@ const InventoryImportModal = ({
 };
 
 const ShareFallbackModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+
+const InventoryManagementModal = ({ 
+  isOpen, 
+  onClose,
+  inventories,
+  userUid,
+  onInventoryCreated
+}: { 
+  isOpen: boolean;
+  onClose: () => void;
+  inventories: Inventory[];
+  userUid?: string;
+  onInventoryCreated: () => void;
+}) => {
+  const [newInventoryName, setNewInventoryName] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userUid || !newInventoryName.trim() || inventories.length >= 3) return;
+
+    setIsLoading(true);
+    try {
+      await firestoreService.createInventory(userUid, {
+        name: newInventoryName.trim(),
+        description: '',
+        status: 'active',
+      });
+      setNewInventoryName('');
+      onInventoryCreated();
+    } catch (error) {
+      console.error('Error creating inventory:', error);
+      alert('Error al crear el inventario.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Gestionar Inventarios" maxWidth="max-w-md">
+      <div className="space-y-6">
+        <div>
+          <p className="text-sm text-muted mb-4">Máximo 3 inventarios independientes</p>
+          <form onSubmit={handleCreate} className="space-y-4">
+            <input
+              type="text"
+              placeholder="Nombre del nuevo inventario"
+              value={newInventoryName}
+              onChange={(e) => setNewInventoryName(e.target.value)}
+              className="premium-input"
+              disabled={isLoading || inventories.length >= 3}
+            />
+            <button
+              type="submit"
+              disabled={isLoading || !newInventoryName.trim() || inventories.length >= 3}
+              className="premium-button-accent w-full"
+            >
+              {isLoading ? 'Creando...' : 'Crear Nuevo Inventario'}
+            </button>
+            {inventories.length >= 3 && (
+              <p className="text-xs text-rose-600 font-semibold">Ya tienes 3 inventarios. Elimina uno para crear otro.</p>
+            )}
+          </form>
+        </div>
+
+        <div className="border-t border-border pt-4">
+          <p className="text-xs font-bold text-muted uppercase tracking-widest mb-3">Inventarios Actuales:</p>
+          <ul className="space-y-2">
+            {inventories.map((inv, idx) => (
+              <li key={inv.id} className="flex items-center justify-between text-sm p-2 bg-surface rounded">
+                <span className="font-semibold text-primary">{inv.name}</span>
+                <span className="text-[10px] text-muted">{idx + 1} de {inventories.length}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Compartir Nota de Entrega">
       <div className="space-y-6">
@@ -628,6 +713,8 @@ function App() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [inventories, setInventories] = useState<Inventory[]>([]);
+  const [selectedInventoryId, setSelectedInventoryId] = useState<string | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [deliveryNotes, setDeliveryNotes] = useState<DeliveryNote[]>([]);
   
@@ -641,9 +728,12 @@ function App() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isShareFallbackOpen, setIsShareFallbackOpen] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
+  const [isInventoryModalOpen, setIsInventoryModalOpen] = useState(false);
+  const [inventoryToDelete, setInventoryToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     let unsubCustomers: (() => void) | undefined;
+    let unsubInventories: (() => void) | undefined;
     let unsubItems: (() => void) | undefined;
     let unsubNotes: (() => void) | undefined;
 
@@ -651,6 +741,10 @@ function App() {
       if (unsubCustomers) {
         unsubCustomers();
         unsubCustomers = undefined;
+      }
+      if (unsubInventories) {
+        unsubInventories();
+        unsubInventories = undefined;
       }
       if (unsubItems) {
         unsubItems();
@@ -688,6 +782,29 @@ function App() {
             firebaseUser.uid,
             setCustomers
           );
+
+          // Cargar inventarios y setear el por defecto
+          unsubInventories = firestoreService.onInventories(
+            firebaseUser.uid,
+            async (invs) => {
+              setInventories(invs);
+              if (invs.length === 0) {
+                // Crear inventario principal por defecto
+                const defaultInv = await firestoreService.createInventory(firebaseUser.uid, {
+                  name: 'Inventario Principal',
+                  description: 'Inventario por defecto',
+                  status: 'active',
+                });
+                setSelectedInventoryId(defaultInv.id);
+              } else {
+                // Seleccionar el primer inventario (más reciente)
+                if (!selectedInventoryId) {
+                  setSelectedInventoryId(invs[0].id);
+                }
+              }
+            }
+          );
+
           unsubItems = firestoreService.subscribeToItems(
             firebaseUser.uid,
             setItems
@@ -735,6 +852,12 @@ function App() {
       unsubscribe();
     };
   }, []);
+
+  // Filtrar items del inventario seleccionado
+  const currentInventoryItems = useMemo(() => {
+    if (!selectedInventoryId) return items;
+    return items.filter(item => item.inventoryId === selectedInventoryId || !item.inventoryId);
+  }, [items, selectedInventoryId]);
 
   const navigate = (screen: Screen) => {
     setCurrentScreen(screen);
@@ -1675,7 +1798,7 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
     const itemsPerPage = 10;
 
     const filtered = useMemo(() => {
-      const result = items.filter(i => 
+      const result = currentInventoryItems.filter(i => 
         i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         i.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
         i.sku.toLowerCase().includes(searchTerm.toLowerCase())
@@ -1688,7 +1811,7 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
       });
 
       return result;
-    }, [searchTerm, sortConfig, items]);
+    }, [searchTerm, sortConfig, currentInventoryItems]);
 
     const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
     const totalPages = Math.ceil(filtered.length / itemsPerPage);
@@ -1702,6 +1825,36 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
 
     return (
       <div className="p-4 sm:p-6 lg:p-10 space-y-8">
+        {/* Inventory Selector */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="text-xs font-bold text-primary uppercase tracking-widest">📦 Inventario:</label>
+            <select
+              value={selectedInventoryId || ''}
+              onChange={(e) => setSelectedInventoryId(e.target.value || null)}
+              className="px-4 py-2 bg-surface border border-border rounded text-text text-sm font-semibold hover:border-accent transition"
+            >
+              {inventories.map(inv => (
+                <option key={inv.id} value={inv.id}>{inv.name}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => setIsInventoryModalOpen(true)}
+              className="px-3 py-2 bg-accent/10 text-accent rounded text-xs font-bold hover:bg-accent/20 transition flex items-center gap-2"
+            >
+              <Plus size={14} /> Nuevo
+            </button>
+          </div>
+          {inventories.length > 1 && selectedInventoryId && (
+            <button
+              onClick={() => setInventoryToDelete(selectedInventoryId)}
+              className="px-3 py-2 bg-rose-500/10 text-rose-600 rounded text-xs font-bold hover:bg-rose-500/20 transition"
+            >
+              Eliminar Inventario
+            </button>
+          )}
+        </div>
+
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
@@ -1947,11 +2100,11 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
         </div>
 
         {/* Inventory Summary */}
-        {items.length > 0 && (
+        {currentInventoryItems.length > 0 && (
           <div className="premium-card p-6 space-y-6 border-t-4 border-accent">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-primary uppercase tracking-widest">📊 Resumen del Inventario</h3>
-              <span className="text-[11px] font-bold text-muted uppercase tracking-widest bg-surface px-3 py-1 rounded">{items.filter(i => i.activo).length} Activos</span>
+              <span className="text-[11px] font-bold text-muted uppercase tracking-widest bg-surface px-3 py-1 rounded">{currentInventoryItems.filter(i => i.activo).length} Activos</span>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1959,7 +2112,7 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
                 <div className="bg-surface rounded-lg p-4 border border-border">
                   <p className="text-[10px] font-bold text-muted uppercase tracking-widest mb-2">💰 Inversión Total (Costo)</p>
                   <p className="text-2xl font-bold text-primary">
-                    ${items.reduce((sum, item) => {
+                    ${currentInventoryItems.reduce((sum, item) => {
                       const cost = item.costPrice || 0;
                       return sum + (cost * item.stock);
                     }, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -1970,7 +2123,7 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
                 <div className="bg-surface rounded-lg p-4 border border-border">
                   <p className="text-[10px] font-bold text-muted uppercase tracking-widest mb-2">📈 Valor en Venta (Potencial)</p>
                   <p className="text-2xl font-bold text-accent">
-                    ${items.reduce((sum, item) => sum + (item.price * item.stock), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    ${currentInventoryItems.reduce((sum, item) => sum + (item.price * item.stock), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </p>
                   <p className="text-[9px] text-muted mt-2">Valor de venta × cantidad en stock</p>
                 </div>
@@ -1980,7 +2133,7 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
                 <div className="bg-emerald-50 rounded-lg p-4 border-2 border-emerald-200">
                   <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest mb-2">💹 Ganancia Potencial</p>
                   <p className="text-2xl font-bold text-emerald-700">
-                    ${Math.max(0, items.reduce((sum, item) => {
+                    ${Math.max(0, currentInventoryItems.reduce((sum, item) => {
                       const cost = item.costPrice || 0;
                       return sum + ((item.price - cost) * item.stock);
                     }, 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -1992,8 +2145,8 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
                   <p className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest mb-2">📊 Margen Promedio</p>
                   <p className="text-2xl font-bold text-indigo-700">
                     {(() => {
-                      const totalVentas = items.reduce((sum, item) => sum + (item.price * item.stock), 0);
-                      const totalCostos = items.reduce((sum, item) => {
+                      const totalVentas = currentInventoryItems.reduce((sum, item) => sum + (item.price * item.stock), 0);
+                      const totalCostos = currentInventoryItems.reduce((sum, item) => {
                         const cost = item.costPrice || 0;
                         return sum + (cost * item.stock);
                       }, 0);
@@ -2008,11 +2161,11 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
             
             <div className="grid grid-cols-3 gap-3 pt-4 border-t border-border">
               <div className="text-center">
-                <p className="text-2xl font-bold text-primary">{items.length}</p>
+                <p className="text-2xl font-bold text-primary">{currentInventoryItems.length}</p>
                 <p className="text-[9px] text-muted uppercase tracking-tighter mt-1">Productos</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold text-primary">{items.reduce((sum, item) => sum + item.stock, 0).toLocaleString()}</p>
+                <p className="text-2xl font-bold text-primary">{currentInventoryItems.reduce((sum, item) => sum + item.stock, 0).toLocaleString()}</p>
                 <p className="text-[9px] text-muted uppercase tracking-tighter mt-1">Unidades</p>
               </div>
               <div className="text-center">
@@ -2046,6 +2199,7 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
       const itemData: Item = {
         ...formData,
         id: editingItem?.id || Math.random().toString(36).substr(2, 9),
+        inventoryId: selectedInventoryId || undefined,
         createdAt: editingItem?.createdAt || now,
         updatedAt: now
       } as Item;
@@ -3268,10 +3422,63 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
           isOpen={isImportModalOpen} 
           onClose={() => setIsImportModalOpen(false)} 
           userUid={user?.uid}
+          selectedInventoryId={selectedInventoryId}
           onImport={() => {
             setIsImportModalOpen(false);
           }} 
         />
+
+        <InventoryManagementModal
+          isOpen={isInventoryModalOpen}
+          onClose={() => setIsInventoryModalOpen(false)}
+          inventories={inventories}
+          userUid={user?.uid}
+          onInventoryCreated={() => {
+            setIsInventoryModalOpen(false);
+          }}
+        />
+
+        {inventoryToDelete && (
+          <Modal 
+            isOpen={!!inventoryToDelete} 
+            onClose={() => setInventoryToDelete(null)} 
+            title="Eliminar Inventario"
+          >
+            <div className="space-y-6">
+              <p className="text-muted text-sm leading-relaxed">
+                ¿Estás seguro de que deseas eliminar este inventario y todos sus productos? Esta acción no se puede deshacer.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <button 
+                  onClick={async () => {
+                    if (user && inventoryToDelete) {
+                      try {
+                        await firestoreService.deleteInventory(user.uid, inventoryToDelete);
+                        const remaining = inventories.filter(i => i.id !== inventoryToDelete);
+                        if (remaining.length > 0) {
+                          setSelectedInventoryId(remaining[0].id);
+                        }
+                        setInventoryToDelete(null);
+                      } catch (error) {
+                        console.error('Error deleting inventory:', error);
+                        alert('Error al eliminar el inventario.');
+                      }
+                    }
+                  }}
+                  className="bg-rose-600 text-white py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-rose-700 transition-colors"
+                >
+                  Eliminar
+                </button>
+                <button 
+                  onClick={() => setInventoryToDelete(null)}
+                  className="bg-background text-primary border border-border py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-surface transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )}
       </div>
 
       {isSidebarOpen && (
