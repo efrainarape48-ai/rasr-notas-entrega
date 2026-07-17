@@ -2,9 +2,11 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
+  where,
   setDoc,
   deleteDoc,
   writeBatch,
@@ -533,6 +535,19 @@ export function onInventories(uid: string, callback: (inventories: Inventory[]) 
 }
 
 export async function deleteInventory(uid: string, inventoryId: string) {
+  // Eliminar todos los items asociados a este inventario primero
+  const itemsQuery = query(itemsCol(uid), where('inventoryId', '==', inventoryId));
+  const itemsSnapshot = await getDocs(itemsQuery);
+
+  if (!itemsSnapshot.empty) {
+    const batch = writeBatch(db);
+    itemsSnapshot.docs.forEach((itemDoc) => {
+      batch.delete(itemDoc.ref);
+    });
+    await batch.commit();
+  }
+
+  // Luego eliminar el inventario en sí
   await deleteDoc(doc(inventoriesCol(uid), inventoryId));
 }
 

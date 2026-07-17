@@ -400,8 +400,6 @@ const InventoryImportModal = ({
   );
 };
 
-const ShareFallbackModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
-
 const InventoryManagementModal = ({ 
   isOpen, 
   onClose,
@@ -481,6 +479,9 @@ const InventoryManagementModal = ({
     </Modal>
   );
 };
+
+const ShareFallbackModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Compartir Nota de Entrega">
@@ -797,10 +798,13 @@ function App() {
                 });
                 setSelectedInventoryId(defaultInv.id);
               } else {
-                // Seleccionar el primer inventario (más reciente)
-                if (!selectedInventoryId) {
-                  setSelectedInventoryId(invs[0].id);
-                }
+                // Seleccionar el primero solo si aún no hay selección o la selección ya no existe
+                setSelectedInventoryId((prev) => {
+                  if (prev && invs.some((inv) => inv.id === prev)) {
+                    return prev;
+                  }
+                  return invs[0].id;
+                });
               }
             }
           );
