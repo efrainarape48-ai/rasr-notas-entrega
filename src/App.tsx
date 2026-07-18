@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, 
   Users, 
@@ -857,11 +857,38 @@ function App() {
     };
   }, []);
 
-  // Filtrar items del inventario seleccionado
+  // Filtrar items del inventario seleccionado (estricto: cada inventario es independiente)
   const currentInventoryItems = useMemo(() => {
-    if (!selectedInventoryId) return items;
-    return items.filter(item => item.inventoryId === selectedInventoryId || !item.inventoryId);
+    if (!selectedInventoryId) return [];
+    return items.filter(item => item.inventoryId === selectedInventoryId);
   }, [items, selectedInventoryId]);
+
+  // Migración automática: asignar productos antiguos (sin inventoryId) al inventario Principal
+  // Esto asegura que cada inventario sea 100% independiente, incluso para datos creados antes de esta función.
+  const migrationRanRef = useRef(false);
+  useEffect(() => {
+    if (!user || migrationRanRef.current) return;
+    if (inventories.length === 0 || items.length === 0) return;
+
+    const orphanItems = items.filter(item => !item.inventoryId);
+    if (orphanItems.length === 0) {
+      migrationRanRef.current = true;
+      return;
+    }
+
+    // El inventario más antiguo (creado primero) es el "Principal" por convención
+    const targetInventory = [...inventories].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    )[0];
+    if (!targetInventory) return;
+
+    migrationRanRef.current = true;
+    const migratedItems = orphanItems.map(item => ({ ...item, inventoryId: targetInventory.id }));
+    firestoreService.saveItemsBatch(user.uid, migratedItems).catch((error) => {
+      console.error('Error migrando productos antiguos al inventario Principal:', error);
+      migrationRanRef.current = false;
+    });
+  }, [user, items, inventories]);
 
   const navigate = (screen: Screen) => {
     setCurrentScreen(screen);
@@ -2173,7 +2200,7 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
                 <p className="text-[9px] text-muted uppercase tracking-tighter mt-1">Unidades</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold text-accent">{items.filter(i => i.stock < 10).length}</p>
+                <p className="text-2xl font-bold text-accent">{currentInventoryItems.filter(i => i.stock < 10).length}</p>
                 <p className="text-[9px] text-muted uppercase tracking-tighter mt-1">Bajo Stock</p>
               </div>
             </div>
@@ -2189,6 +2216,7 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
       name: '',
       description: '',
       price: 0,
+      costPrice: 0,
       unit: 'unidad',
       stock: 0,
       categoria: 'General',
@@ -2258,7 +2286,7 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
                 ></textarea>
               </div>
 
-              <div>
+              <div className="md:col-span-2">
                 <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Categoría</label>
                 <input 
                   type="text" 
@@ -2269,9 +2297,21 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Precio Unitario ($)</label>
+                  <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Precio de Costo ($)</label>
+                  <input 
+                    type="number" 
+                    min="0"
+                    step="0.01"
+                    className="premium-input" 
+                    placeholder="0.00"
+                    value={formData.costPrice ?? ''}
+                    onChange={(e) => setFormData({ ...formData, costPrice: e.target.value === '' ? undefined : Number(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Precio de Venta ($)</label>
 <input 
   type="number" 
   required
