@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useId } from 'react';
 import { 
   LayoutDashboard, 
   Users, 
@@ -162,6 +162,29 @@ const PDFPreviewFrame = ({
         )}
       </div>
     </div>
+  );
+};
+
+const RasrLogoMark = ({ size = 40 }: { size?: number }) => {
+  const gradId = `rasrNavyGrad-${useId()}`;
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#232B63" />
+          <stop offset="100%" stopColor="#1B204E" />
+        </linearGradient>
+      </defs>
+      <rect width="64" height="64" rx="16" fill={`url(#${gradId})`} />
+      <g transform="translate(16,12)">
+        <path d="M2 2 H24 a2 2 0 0 1 2 2 V32 L21 28 L16 32 L11 28 L6 32 L1 28 V4 a2 2 0 0 1 1-2Z" fill="#F8FAFC" />
+        <line x1="6" y1="10" x2="21" y2="10" stroke="#146EB1" strokeWidth="2" strokeLinecap="round" />
+        <line x1="6" y1="15.5" x2="18" y2="15.5" stroke="#CBD5E1" strokeWidth="2" strokeLinecap="round" />
+        <line x1="6" y1="21" x2="14" y2="21" stroke="#CBD5E1" strokeWidth="2" strokeLinecap="round" />
+      </g>
+      <circle cx="47" cy="41" r="11" fill="#F5A524" />
+      <path d="M42.5 41 L45.5 44 L52 37" stroke="#1B204E" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
   );
 };
 
@@ -908,9 +931,7 @@ function App() {
     <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-navy text-white transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       <div className="flex flex-col h-full">
         <div className="p-8 flex items-center space-x-3">
-          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
-            <FileText className="text-white" size={24} />
-          </div>
+          <RasrLogoMark size={40} />
           <span className="text-2xl font-bold tracking-tighter uppercase truncate max-w-[150px]">
             {user?.company?.name || 'RASR'}
           </span>
@@ -1032,93 +1053,185 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
     };
 
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-6">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4 sm:p-6">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md"
+          className="w-full max-w-5xl"
         >
-          <div className="text-center mb-10">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-navy rounded-2xl shadow-2xl mb-6">
-              <FileText className="text-primary" size={40} />
+          <div className="premium-card overflow-hidden grid lg:grid-cols-[1.15fr_1fr]">
+
+            {/* Panel corporativo — solo visible en pantallas grandes */}
+            <div className="hidden lg:flex relative flex-col justify-between bg-navy p-10 overflow-hidden">
+              <div
+                className="absolute inset-0 opacity-[0.06] pointer-events-none"
+                style={{
+                  backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)',
+                  backgroundSize: '32px 32px',
+                  maskImage: 'radial-gradient(circle at 25% 20%, black, transparent 70%)',
+                  WebkitMaskImage: 'radial-gradient(circle at 25% 20%, black, transparent 70%)',
+                }}
+              />
+
+              <div className="relative z-10 flex items-center gap-3">
+                <RasrLogoMark size={36} />
+                <span className="text-white font-extrabold text-lg tracking-tight">RASR</span>
+              </div>
+
+              {/* Mockup plano de una nota de entrega real */}
+              <div className="relative z-10 flex justify-center my-6">
+                <div className="w-64 bg-white rounded-xl overflow-hidden shadow-2xl">
+                  <div className="bg-navy px-4 py-3 flex items-center justify-between">
+                    <span className="text-white text-[11px] font-extrabold tracking-wide">NOTA DE ENTREGA</span>
+                    <span className="text-blue-gray text-[9px] font-mono">#00842</span>
+                  </div>
+                  <div className="px-4 py-4">
+                    <div className="flex justify-between items-center mb-1.5">
+                      <span className="text-[8px] font-bold text-muted uppercase tracking-wide">Cliente</span>
+                      <span className="h-1.5 w-16 bg-background rounded-full"></span>
+                    </div>
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="text-[8px] font-bold text-muted uppercase tracking-wide">Fecha</span>
+                      <span className="h-1.5 w-10 bg-background rounded-full"></span>
+                    </div>
+                    <div className="border-t border-border pt-2">
+                      <div className="grid grid-cols-3 gap-2 pb-1.5 border-b border-border">
+                        <span className="text-[7px] font-bold text-muted uppercase">Producto</span>
+                        <span className="text-[7px] font-bold text-muted uppercase">Cant.</span>
+                        <span className="text-[7px] font-bold text-muted uppercase">Total</span>
+                      </div>
+                      {[78, 55, 66].map((w, i) => (
+                        <div key={i} className="grid grid-cols-3 gap-2 py-1.5 border-b border-background items-center">
+                          <span className="h-1.5 bg-background rounded-full" style={{ width: `${w}%` }}></span>
+                          <span className="h-1.5 w-5 bg-background rounded-full"></span>
+                          <span className="h-1.5 w-7 bg-background rounded-full"></span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-dashed border-border">
+                      <span className="text-[7px] font-mono text-muted">Firma de recibido ____</span>
+                      <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 rounded px-1.5 py-0.5 text-[7px] font-extrabold">
+                        <CheckCircle2 size={8} /> ENTREGADO
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="relative z-10">
+                <p className="text-[10px] font-bold text-primary/80 uppercase tracking-[0.2em] mb-2">Gestión de entregas</p>
+                <h2 className="text-white text-xl font-extrabold leading-snug mb-2">Control total de tus entregas,<br />en un solo lugar.</h2>
+                <p className="text-blue-gray/80 text-xs leading-relaxed max-w-xs">Clientes, inventario y notas de entrega organizados para tu negocio — sin papeles perdidos.</p>
+              </div>
             </div>
-            <h1 className="text-4xl font-extrabold text-carbon tracking-tighter uppercase">RASR</h1>
-            <p className="text-steel mt-3 font-medium">Gestión de entregas profesional</p>
+
+            {/* Formulario */}
+            <div className="p-8 sm:p-12 flex flex-col justify-center">
+              <div className="lg:hidden flex justify-center mb-8">
+                <RasrLogoMark size={56} />
+              </div>
+
+              <h1 className="text-2xl font-extrabold text-carbon tracking-tight">Bienvenido de nuevo</h1>
+              <p className="text-steel text-sm mt-1 mb-8">Ingresa a tu cuenta para continuar</p>
+
+              <form onSubmit={handleLoginSubmit} className="space-y-6">
+                {error && (
+                  <div className="bg-rose-50 border border-rose-200 text-rose-600 p-4 rounded-xl text-xs font-bold flex items-center gap-3">
+                    <AlertCircle size={18} />
+                    {error}
+                  </div>
+                )}
+                <div>
+                  <label className="block text-[10px] font-bold text-carbon uppercase tracking-[0.2em] mb-2">Correo Electrónico</label>
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
+                    <input 
+                      type="email" 
+                      required 
+                      className="premium-input pl-12" 
+                      placeholder="ejemplo@correo.com" 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-carbon uppercase tracking-[0.2em] mb-2">Contraseña</label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
+                    <input 
+                      type="password" 
+                      required 
+                      className="premium-input pl-12" 
+                      placeholder="••••••••" 
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <button 
+                  type="submit" 
+                  disabled={isSubmitting}
+                  className="premium-button-primary w-full py-4 text-xs uppercase tracking-[0.2em] font-extrabold disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Iniciando...' : 'Iniciar Sesión'}
+                </button>
+
+                <div className="relative my-8">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-border"></div>
+                  </div>
+                  <div className="relative flex justify-center text-[10px] uppercase tracking-widest font-bold">
+                    <span className="bg-background px-4 text-muted">O continuar con</span>
+                  </div>
+                </div>
+
+                <button 
+                  type="button"
+                  onClick={handleGoogleLogin}
+                  disabled={isSubmitting}
+                  className="premium-button-secondary w-full py-4 text-xs uppercase tracking-[0.2em] font-extrabold flex items-center justify-center gap-3 disabled:opacity-50"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24">
+                    <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                    <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                  </svg>
+                  Google
+                </button>
+              </form>
+              
+              <div className="mt-8 text-center">
+                <p className="text-sm text-steel">
+                  ¿No tienes una cuenta? <button onClick={() => navigate('register')} className="text-primary font-bold hover:underline">Regístrate ahora</button>
+                </p>
+              </div>
+            </div>
           </div>
 
-          <div className="premium-card p-10">
-            <form onSubmit={handleLoginSubmit} className="space-y-6">
-              {error && (
-                <div className="bg-rose-50 border border-rose-200 text-rose-600 p-4 rounded-xl text-xs font-bold flex items-center gap-3">
-                  <AlertCircle size={18} />
-                  {error}
-                </div>
-              )}
-              <div>
-                <label className="block text-[10px] font-bold text-carbon uppercase tracking-[0.2em] mb-2">Correo Electrónico</label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
-                  <input 
-                    type="email" 
-                    required 
-                    className="premium-input pl-12" 
-                    placeholder="ejemplo@correo.com" 
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-carbon uppercase tracking-[0.2em] mb-2">Contraseña</label>
-                <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
-                  <input 
-                    type="password" 
-                    required 
-                    className="premium-input pl-12" 
-                    placeholder="••••••••" 
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </div>
-              </div>
-              <button 
-                type="submit" 
-                disabled={isSubmitting}
-                className="premium-button-primary w-full py-4 text-xs uppercase tracking-[0.2em] font-extrabold disabled:opacity-50"
-              >
-                {isSubmitting ? 'Iniciando...' : 'Iniciar Sesión'}
-              </button>
-
-              <div className="relative my-8">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-border"></div>
-                </div>
-                <div className="relative flex justify-center text-[10px] uppercase tracking-widest font-bold">
-                  <span className="bg-background px-4 text-muted">O continuar con</span>
-                </div>
-              </div>
-
-              <button 
-                type="button"
-                onClick={handleGoogleLogin}
-                disabled={isSubmitting}
-                className="premium-button-secondary w-full py-4 text-xs uppercase tracking-[0.2em] font-extrabold flex items-center justify-center gap-3 disabled:opacity-50"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24">
-                  <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                  <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                  <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                  <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                </svg>
-                Google
-              </button>
-            </form>
-            
-            <div className="mt-8 text-center">
-              <p className="text-sm text-steel">
-                ¿No tienes una cuenta? <button onClick={() => navigate('register')} className="text-primary font-bold hover:underline">Regístrate ahora</button>
+          {/* Deslinde legal + crédito */}
+          <div className="max-w-2xl mx-auto mt-6 space-y-4 px-2">
+            <div className="flex gap-3 bg-surface border border-border rounded-xl p-4">
+              <AlertCircle className="text-amber-600 shrink-0 mt-0.5" size={16} />
+              <p className="text-[11px] text-steel leading-relaxed">
+                <strong className="text-carbon">RASR es una herramienta de gestión de notas de entrega, no un sistema de facturación.</strong> Los documentos generados aquí son comprobantes internos de entrega de mercancía y no sustituyen una factura fiscal, ni tienen validez como documento tributario o legal ante organismos de recaudación. Úsala como respaldo interno entre tu negocio y tus clientes.
               </p>
+            </div>
+
+            <div className="flex items-center justify-center gap-2 text-[11px] text-muted">
+              <img src="/ea-studios-logo.png" alt="E.A Studios" className="w-5 h-5 rounded object-contain" />
+              <span>
+                Creado por{' '}
+                <a 
+                  href="https://efrainarape-portafolio.vercel.app/" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="font-bold text-steel hover:text-primary transition-colors"
+                >
+                  E.A Studios
+                </a>
+              </span>
             </div>
           </div>
         </motion.div>
