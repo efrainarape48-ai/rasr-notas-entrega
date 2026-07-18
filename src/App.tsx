@@ -2580,6 +2580,14 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
     const [quantity, setQuantity] = useState(1);
     const [productSearch, setProductSearch] = useState('');
     const [productDropdownOpen, setProductDropdownOpen] = useState(false);
+    const [noteInventoryId, setNoteInventoryId] = useState(
+      editingNote?.inventoryId || selectedInventoryId || (inventories[0]?.id ?? '')
+    );
+
+    const noteInventoryItems = useMemo(
+      () => items.filter(i => i.inventoryId === noteInventoryId),
+      [items, noteInventoryId]
+    );
 
     useEffect(() => {
       if (!productDropdownOpen) return;
@@ -2628,7 +2636,7 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
     }, [deliveryNotes.length, editingNote, formData, selectedCustomer, settings.numberingFormat, totals]);
 
     const addItem = () => {
-  const item = items.find(i => i.id === selectedItemId);
+  const item = noteInventoryItems.find(i => i.id === selectedItemId);
   if (!item) return;
 
   const normalizedQuantity = Number(quantity);
@@ -2681,6 +2689,7 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
         customerTaxId: customer?.taxId || '',
         ...totals,
         id: editingNote?.id || Math.random().toString(36).substr(2, 9),
+        inventoryId: noteInventoryId || undefined,
         createdAt: editingNote?.createdAt || now,
         updatedAt: now
       } as DeliveryNote;
@@ -2725,6 +2734,25 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
                   </div>
                 </div>
                 <div>
+                  <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">📦 Inventario de Origen</label>
+                  <select
+                    required
+                    className="premium-input"
+                    value={noteInventoryId}
+                    onChange={(e) => {
+                      setNoteInventoryId(e.target.value);
+                      setSelectedItemId('');
+                      setProductSearch('');
+                    }}
+                  >
+                    <option value="">Seleccionar inventario</option>
+                    {inventories.map(inv => (
+                      <option key={inv.id} value={inv.id}>{inv.name}</option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-muted mt-2">Los productos disponibles para esta nota se tomarán de este inventario.</p>
+                </div>
+                <div>
                   <label className="block text-xs font-bold text-primary uppercase tracking-widest mb-3">Cliente</label>
                   <select 
                     required 
@@ -2749,7 +2777,7 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
                       className="premium-input w-full text-left flex items-center justify-between"
                     >
                       <span className={selectedItemId ? 'text-primary' : 'text-muted'}>
-                        {selectedItemId ? items.find(i => i.id === selectedItemId)?.name ?? 'Seleccionar producto para agregar' : 'Seleccionar producto para agregar'}
+                        {selectedItemId ? noteInventoryItems.find(i => i.id === selectedItemId)?.name ?? 'Seleccionar producto para agregar' : 'Seleccionar producto para agregar'}
                       </span>
                       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`text-muted transition-transform shrink-0 ml-2 ${productDropdownOpen ? 'rotate-180' : ''}`}><path d="m6 9 6 6 6-6"/></svg>
                     </button>
@@ -2769,10 +2797,10 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
                           </div>
                         </div>
                         <ul className="max-h-52 overflow-y-auto">
-                          {items.filter(i => i.name.toLowerCase().includes(productSearch.toLowerCase())).length === 0 ? (
+                          {noteInventoryItems.filter(i => i.name.toLowerCase().includes(productSearch.toLowerCase())).length === 0 ? (
                             <li className="px-4 py-3 text-sm text-muted italic text-center">Sin resultados</li>
                           ) : (
-                            items.filter(i => i.name.toLowerCase().includes(productSearch.toLowerCase())).map(i => (
+                            noteInventoryItems.filter(i => i.name.toLowerCase().includes(productSearch.toLowerCase())).map(i => (
                               <li key={i.id}>
                                 <button
                                   type="button"

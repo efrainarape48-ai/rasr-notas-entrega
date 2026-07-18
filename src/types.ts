@@ -78,6 +78,7 @@ export interface DeliveryNote {
   signerName?: string;
   signatureSvg?: string;
   inventoryApplied?: boolean;
+  inventoryId?: string;
 
   createdAt?: string;
   updatedAt?: string;
