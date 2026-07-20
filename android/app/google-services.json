@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "357810798765-4nd9kfdn02310qha5eab3485uufl7ml2.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.easudios.rasr",
+            "certificate_hash": "fb796a32cdfa36a42cce633f7baba7750c5f519a"
+          }
+        },
+        {
           "client_id": "357810798765-4vhmmsf59sbo0r4s6vik9fjthmhle4ti.apps.googleusercontent.com",
           "client_type": 3
         }
