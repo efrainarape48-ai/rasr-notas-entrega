@@ -695,7 +695,7 @@ const shareOnWhatsApp = async (
     } else {
       const text = encodeURIComponent(`Hola, adjunto la nota de entrega ${note.noteNumber} de ${company.name}. Por favor, descarga el PDF adjunto.`);
       window.open(`https://wa.me/${note.customerPhone.replace(/\D/g, '')}?text=${text}`, '_blank');
-      saveProfessionalPDF(note, company, customer);
+      await saveProfessionalPDF(note, company, customer);
       openFallback?.();
     }
   } catch (error) {
@@ -3098,7 +3098,15 @@ const renderTopBar = (title: string, showBack = false, backTo: Screen = 'dashboa
     </button>
 
     <button 
-      onClick={() => user?.company && saveProfessionalPDF(viewingNote, user.company, customer)} 
+      onClick={async () => {
+        if (!user?.company) return;
+        try {
+          await saveProfessionalPDF(viewingNote, user.company, customer);
+        } catch (error) {
+          console.error('Error generando/guardando el PDF:', error);
+          alert('No se pudo generar el PDF. Intenta de nuevo.');
+        }
+      }} 
       className="premium-button-secondary w-full flex items-center justify-center gap-2 py-3 px-2 min-h-[58px]"
     >
       <Printer size={16} className="shrink-0" />

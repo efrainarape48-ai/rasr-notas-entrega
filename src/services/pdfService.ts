@@ -1,4 +1,7 @@
 import { jsPDF } from 'jspdf';
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 import type { CompanyProfile, Customer, DeliveryNote, DeliveryNoteLine, DeliveryStatus } from '../types';
 
 const PAGE_WIDTH = 210;
@@ -622,13 +625,44 @@ export function getProfessionalPDFBlob(
   return pdf.output('blob');
 }
 
-export function saveProfessionalPDF(
+/**
+ * Guardar / entregar el PDF al usuario.
+ *
+ * - En el navegador (Vercel): se mantiene el comportamiento de siempre,
+ *   pdf.save() dispara la descarga normal del navegador.
+ * - En la app nativa de Android: pdf.save() usa un <a download> que el
+ *   WebView de Capacitor ignora en silencio (no pasa nada, no hay error).
+ *   Por eso ahí escribimos el PDF a almacenamiento temporal de la app
+ *   (Filesystem) y lo entregamos al menú nativo de compartir/guardar de
+ *   Android (Share), donde el usuario elige Drive, Archivos, WhatsApp, etc.
+ *   Esto no requiere pedir permisos de almacenamiento.
+ */
+export async function saveProfessionalPDF(
   note: DeliveryNote,
   company: CompanyProfile,
   customer?: Customer | null
-): void {
+): Promise<void> {
   const pdf = buildPdf(note, company, customer);
   const safeCustomer = (note.customerName || customer?.name || 'cliente').replace(/\s+/g, '_');
   const fileName = `${note.noteNumber}_${safeCustomer}.pdf`;
+
+  if (Capacitor.isNativePlatform()) {
+    const base64Data = pdf.output('datauristring').split('base64,')[1];
+
+    const written = await Filesystem.writeFile({
+      path: fileName,
+      data: base64Data,
+      directory: Directory.Cache,
+    });
+
+    await Share.share({
+      title: fileName,
+      dialogTitle: 'Guardar o compartir nota de entrega',
+      url: written.uri,
+    });
+
+    return;
+  }
+
   pdf.save(fileName);
 }
