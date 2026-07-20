@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "357810798765",
+    "project_id": "rasr-app",
+    "storage_bucket": "rasr-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:357810798765:android:8856e4f5e77413e7c2c624",
+        "android_client_info": {
+          "package_name": "com.easudios.rasr"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "357810798765-4vhmmsf59sbo0r4s6vik9fjthmhle4ti.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDGEq_ziUbZHGBd0bsKACBtKYwrco0Id_o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "357810798765-4vhmmsf59sbo0r4s6vik9fjthmhle4ti.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
